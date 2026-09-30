@@ -8,16 +8,18 @@ import { chromium } from 'playwright-core';
 
 const CHROME = process.env.CHROME_PATH ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const PORT = 4179;
-const URL = `http://localhost:${PORT}/`;
+// E2E_URL=https://blackjack.dooka.fr/ npm run e2e pour jouer sur le site en ligne plutôt qu'en local.
+const URL = process.env.E2E_URL ?? `http://localhost:${PORT}/`;
 const OUT = 'e2e/captures';
 mkdirSync(OUT, { recursive: true });
 
-const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { stdio: 'pipe' });
-await new Promise((resolve, reject) => {
-  server.stdout.on('data', (d) => String(d).includes(String(PORT)) && resolve());
-  server.on('exit', (c) => reject(new Error('vite preview arrêté : ' + c)));
-  setTimeout(() => reject(new Error('vite preview ne démarre pas')), 15000);
-});
+const server = process.env.E2E_URL ? null : spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { stdio: 'pipe' });
+if (server)
+  await new Promise((resolve, reject) => {
+    server.stdout.on('data', (d) => String(d).includes(String(PORT)) && resolve());
+    server.on('exit', (c) => reject(new Error('vite preview arrêté : ' + c)));
+    setTimeout(() => reject(new Error('vite preview ne démarre pas')), 15000);
+  });
 
 const browser = await chromium.launch({ executablePath: CHROME });
 let failures = 0;
@@ -368,7 +370,7 @@ try {
   });
 } finally {
   await browser.close();
-  server.kill();
+  server?.kill();
 }
 
 console.log(failures ? `\n${failures} étape(s) en échec` : '\nPartie complète : tout est bon');
