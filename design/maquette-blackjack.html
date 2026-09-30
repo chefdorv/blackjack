@@ -1,0 +1,1371 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blackjack entre potes</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&amp;family=Manrope:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b3f28;color:#f6f1e3;font-family:Manrope,system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
+a{color:#e2b85a}a:hover{color:#f3d58f}
+*{box-sizing:border-box}
+button{font-family:inherit;cursor:pointer}
+button:disabled{opacity:.4;cursor:not-allowed}
+.app{width:100%;min-height:100vh;display:flex;flex-direction:column;background:radial-gradient(ellipse at 50% -10%,#1f8a55 0%,#12623d 40%,#0b3f28 100%);background-attachment:fixed}
+.felt{position:relative}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid rgba(226,184,90,.3);background:rgba(4,30,18,.55);position:sticky;top:0;z-index:20;backdrop-filter:blur(6px)}
+.brand{display:flex;align-items:center;gap:10px;font-family:'Playfair Display',Georgia,serif;font-weight:900;font-size:22px;color:#f3d58f;letter-spacing:.3px}
+.brand-mark{width:36px;height:36px;border-radius:50%;background:#e2b85a;color:#1c1405;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 0 0 3px rgba(226,184,90,.3)}
+.undo{display:flex;align-items:center;gap:8px;min-height:48px;padding:6px 14px;border-radius:999px;border:1px solid rgba(226,184,90,.55);background:rgba(0,0,0,.25);color:#f6f1e3;font-weight:700;font-size:15px;max-width:52%}
+.undo span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.main{flex-grow:1;width:100%;max-width:1040px;margin:0 auto;padding:16px 16px 28px;display:flex;flex-direction:column;gap:18px}
+.panel{background:rgba(3,28,17,.42);border:1px solid rgba(226,184,90,.32);border-radius:22px;padding:20px;display:flex;flex-direction:column;gap:14px}
+.h1{font-family:'Playfair Display',Georgia,serif;font-weight:900;font-size:40px;line-height:1.05;margin:0;color:#f3d58f}
+.h2{font-family:'Playfair Display',Georgia,serif;font-weight:900;font-size:30px;line-height:1.1;margin:0;color:#f3d58f}
+.h3{font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:22px;margin:0;color:#f6f1e3}
+.k{font-size:13px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;color:#d9c48f}
+.muted{color:#cfdccf;font-size:16px;line-height:1.45;margin:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.btn{min-height:52px;padding:10px 18px;border-radius:14px;border:1px solid rgba(226,184,90,.55);background:rgba(0,0,0,.28);color:#f6f1e3;font-size:17px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.btn.gold{background:linear-gradient(180deg,#f0cd78,#d4a441);color:#1f1604;border-color:#f6dc9a;box-shadow:0 4px 0 #8c6a22}
+.btn.gold:active{transform:translateY(3px);box-shadow:0 1px 0 #8c6a22}
+.btn.red{background:#b3262f;border-color:#e0646b;color:#fff}
+.btn.danger{background:transparent;border-color:#e0646b;color:#ffb3b7}
+.btn.big{min-height:66px;font-size:22px;border-radius:18px;width:100%}
+.btn.ghost{background:rgba(255,255,255,.06)}
+.btn.sm{min-height:44px;font-size:15px;padding:6px 12px}
+.txt{min-height:52px;width:100%;border-radius:14px;border:1px solid rgba(226,184,90,.5);background:rgba(0,0,0,.3);color:#f6f1e3;font-size:18px;font-family:inherit;padding:10px 14px}
+.txt::placeholder{color:#9fb5a5}
+.txt.num{text-align:center;font-weight:800;font-size:20px;width:96px;flex-shrink:0}
+select.txt{appearance:auto}
+.row{display:flex;gap:10px;align-items:center}
+.wrap{flex-wrap:wrap}
+.grow{flex-grow:1;min-width:0}
+/* setup */
+.setup-list{display:flex;flex-direction:column;gap:8px}
+.setup-row{display:flex;align-items:center;gap:8px;padding:8px 8px 8px 12px;border-radius:16px;background:rgba(255,255,255,.06)}
+.seat{width:34px;height:34px;flex-shrink:0;border-radius:50%;border:2px solid #e2b85a;color:#f3d58f;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px}
+.setup-name{flex-grow:1;font-size:21px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.icon-btn{width:48px;height:48px;flex-shrink:0;border-radius:12px;border:1px solid rgba(226,184,90,.45);background:rgba(0,0,0,.25);color:#f6f1e3;display:flex;align-items:center;justify-content:center;padding:0}
+.icon-btn svg{width:22px;height:22px}
+.empty{padding:22px;text-align:center;border:2px dashed rgba(226,184,90,.35);border-radius:18px;color:#cfdccf;font-size:17px}
+/* status */
+.status{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.pill{background:rgba(0,0,0,.3);border:1px solid rgba(226,184,90,.35);border-radius:18px;padding:10px 12px;display:flex;flex-direction:column;align-items:center;gap:2px}
+.pill-v{font-family:'Playfair Display',Georgia,serif;font-weight:900;font-size:40px;line-height:1;color:#f6f1e3}
+.pill-v small{font-size:20px;color:#d9c48f}
+.dots{display:flex;gap:5px;margin-top:4px}
+.dot{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.18)}
+.dot.on{background:#e2b85a}
+.hero{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.dealer-banner{display:flex;align-items:center;gap:14px;padding:16px;border-radius:20px;background:linear-gradient(135deg,rgba(226,184,90,.28),rgba(226,184,90,.08));border:2px solid #e2b85a}
+.dealer-chip{width:64px;height:64px;flex-shrink:0;border-radius:50%;background:#f3f0e6;color:#1d1a12;border:5px dashed #b3262f;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',Georgia,serif;font-weight:900;font-size:22px}
+.dealer-name{font-family:'Playfair Display',Georgia,serif;font-weight:900;font-size:36px;line-height:1.05;color:#fff;word-break:break-word}
+.bets{padding:16px;border-radius:20px;background:rgba(0,0,0,.3);border:1px solid rgba(226,184,90,.35);display:flex;flex-direction:column;gap:4px;justify-content:center}
+.bet-v{font-family:'Playfair Display',Georgia,serif;font-weight:900;font-size:44px;line-height:1;color:#f3d58f}
+.bet-v small{font-family:Manrope,sans-serif;font-size:16px;font-weight:700;color:#d9c48f}
+.small{font-size:14px;color:#cfdccf;line-height:1.4}
+.notice{width:100%;min-height:56px;border-radius:16px;border:2px solid #8246c8;background:rgba(130,70,200,.28);color:#fff;font-size:18px;font-weight:800;animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 6px rgba(130,70,200,.25)}}
+/* players */
+.players{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.pcard{background:rgba(3,28,17,.5);border:1px solid rgba(226,184,90,.3);border-radius:22px;padding:14px;display:flex;flex-direction:column;gap:12px;transition:border-color .3s,box-shadow .3s}
+.pcard.is-dealer{border:2px solid #e2b85a;box-shadow:0 0 0 4px rgba(226,184,90,.18),0 10px 30px rgba(0,0,0,.25)}
+.pcard.is-broke .stack-v{color:#ff8d93}
+.pc-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.pc-id{display:flex;align-items:center;gap:10px;min-width:0;flex-wrap:wrap}
+.pc-name{font-family:'Playfair Display',Georgia,serif;font-weight:900;font-size:28px;line-height:1.05;word-break:break-word}
+.tag-dealer{background:#e2b85a;color:#1f1604;font-size:12px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;padding:4px 9px;border-radius:999px}
+.stack{display:flex;flex-direction:column;align-items:flex-end;flex-shrink:0}
+.stack-v{white-space:nowrap;font-family:'Playfair Display',Georgia,serif;font-weight:900;font-size:46px;line-height:.95;color:#f3d58f}
+.stack-v.bump{animation:bump .45s}
+@keyframes bump{40%{transform:scale(1.18)}}
+.stack-k{font-size:12px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:#d9c48f}
+.badges{display:flex;flex-wrap:wrap;gap:6px}
+.badge{min-height:34px;display:inline-flex;align-items:center;padding:4px 11px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#e9efe6;font-size:14px;font-weight:700}
+button.badge{min-height:40px}
+.badge.avail{background:rgba(130,70,200,.3);border-color:#a57be0;color:#fff}
+.badge.used{text-decoration:line-through;opacity:.65}
+.badge.warn{background:rgba(179,38,47,.35);border-color:#e0646b;color:#fff}
+.quick{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+.qbtn{min-height:54px;border-radius:14px;font-size:19px;font-weight:800;border:1px solid rgba(255,255,255,.2);color:#fff;padding:0}
+.qbtn.minus{background:#7d1f26}
+.qbtn.plus{background:#1e7a48}
+.qbtn.neutral{background:rgba(0,0,0,.35);border-color:rgba(226,184,90,.5);width:56px;flex-shrink:0}
+.pc-foot{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.pc-foot .red{grid-column:1 / -1}
+.pc-foot3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.pc-foot3 .btn{padding:8px 6px;font-size:16px}
+.stepv{min-width:64px;text-align:center;font-family:'Playfair Display',Georgia,serif;font-weight:900;font-size:28px;color:#f3d58f}
+.settle-amt{font-family:'Playfair Display',Georgia,serif;font-weight:900;font-size:28px;min-width:64px;text-align:right;color:#f6f1e3}
+.settle-amt.pos{color:#7fe0a4}.settle-amt.neg{color:#ff9aa0}
+.chip-pick.on{background:#e2b85a;color:#1f1604;border-color:#f6dc9a}
+/* overlay + sheet */
+.overlay{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.6);border:0;padding:0;width:100%;height:100%;animation:fade .2s}
+@keyframes fade{from{opacity:0}}
+.sheet{position:fixed;left:50%;bottom:0;transform:translateX(-50%);z-index:41;width:100%;max-width:560px;max-height:92vh;overflow:auto;background:#0e4a30;border:1px solid #e2b85a;border-bottom:0;border-radius:26px 26px 0 0;padding:20px 18px 28px;display:flex;flex-direction:column;gap:14px;animation:up .28s cubic-bezier(.2,.8,.2,1)}
+@keyframes up{from{transform:translate(-50%,40px);opacity:0}}
+.sheet-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.res{min-height:60px;border-radius:14px;border:1px solid rgba(255,255,255,.2);color:#fff;font-size:17px;font-weight:800;padding:6px}
+.res b{display:block;font-size:22px}
+.res.win{background:#1e7a48}.res.lose{background:#7d1f26}.res.bj{background:#1d1a12;border-color:#e2b85a;color:#f3d58f}
+.chip-pick{min-height:46px;border-radius:999px;border:1px solid rgba(226,184,90,.55);background:rgba(0,0,0,.25);color:#f6f1e3;font-weight:800;font-size:15px;padding:4px 14px}
+.divider{height:1px;background:rgba(226,184,90,.25)}
+/* challenges */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px}
+.flip{perspective:1100px;display:flex;flex-direction:column;gap:8px}
+.flip.deal-in{animation:dealIn .55s cubic-bezier(.2,.8,.2,1.1) both}
+.flip.d1{animation-delay:.08s}.flip.d2{animation-delay:.16s}.flip.d3{animation-delay:.24s}.flip.d4{animation-delay:.32s}.flip.d5{animation-delay:.4s}.flip.d6{animation-delay:.48s}.flip.d7{animation-delay:.56s}
+@keyframes dealIn{from{transform:translateY(-60px) rotate(-12deg);opacity:0}}
+.flip.vanish{animation:vanish .45s ease-in forwards}
+@keyframes vanish{to{transform:translateY(-40px) scale(.7) rotate(8deg);opacity:0}}
+.flip-inner{position:relative;display:block;width:100%;height:250px;border:0;padding:0;background:none;color:inherit;transform-style:preserve-3d;transition:transform .75s cubic-bezier(.3,.7,.25,1.15);text-align:left}
+.flip.flipped .flip-inner{transform:rotateY(180deg);cursor:default}
+.face{position:absolute;inset:0;border-radius:18px;backface-visibility:hidden;-webkit-backface-visibility:hidden;display:flex;flex-direction:column;box-shadow:0 8px 22px rgba(0,0,0,.35)}
+.back{background-color:#7a1422;background-image:repeating-linear-gradient(45deg,rgba(226,184,90,.18) 0 2px,transparent 2px 14px),repeating-linear-gradient(-45deg,rgba(226,184,90,.18) 0 2px,transparent 2px 14px);border:6px solid #f6f1e3;align-items:center;justify-content:center;gap:10px}
+.back-core{width:78px;height:78px;border-radius:50%;background:#f6f1e3;color:#7a1422;display:flex;align-items:center;justify-content:center;font-size:40px;border:3px solid #e2b85a}
+.back-lv{font-size:13px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;padding:4px 10px;border-radius:999px}
+.back-tap{font-size:13px;color:#f6f1e3;font-weight:700}
+.front{transform:rotateY(180deg);padding:14px;gap:8px;border:4px solid rgba(255,255,255,.85)}
+.front-lv{font-size:12px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;opacity:.9}
+.front-txt{font-size:18px;font-weight:800;line-height:1.25;flex-grow:1}
+.front-rw{font-family:'Playfair Display',Georgia,serif;font-weight:900;font-size:40px;line-height:1}
+.front-rw small{font-family:Manrope,sans-serif;font-size:14px;font-weight:700}
+.front-note{font-size:12px;font-weight:700;opacity:.9}
+.lv-facile{background:#2a8f51;color:#fff}
+.lv-moyen{background:#e8c43a;color:#2a2200}
+.lv-difficile{background:#e2781d;color:#231000}
+.lv-legendaire{background:#c83434;color:#fff}
+.lv-croupier{background:#7b43c2;color:#fff}
+.claim{width:100%}
+.log{display:flex;flex-direction:column;gap:6px}
+.log-row{display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.06);font-size:16px}
+.lv-dot{width:14px;height:14px;border-radius:4px;flex-shrink:0}
+.pick-list{display:flex;flex-direction:column;gap:8px}
+.pick{min-height:60px;border-radius:16px;border:1px solid rgba(226,184,90,.5);background:rgba(0,0,0,.25);color:#fff;font-size:22px;font-weight:800;font-family:'Playfair Display',Georgia,serif;display:flex;justify-content:space-between;align-items:center;padding:8px 18px}
+.pick small{font-family:Manrope,sans-serif;font-size:14px;color:#d9c48f}
+/* ranking */
+.rank{display:flex;flex-direction:column;gap:8px}
+.rank-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:18px;background:rgba(255,255,255,.06);border:1px solid transparent}
+.rank-row.top1{border-color:#e2b85a;background:rgba(226,184,90,.16)}
+.rank-pos{width:44px;height:44px;flex-shrink:0;border-radius:50%;background:rgba(0,0,0,.35);border:2px solid rgba(226,184,90,.6);display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',Georgia,serif;font-weight:900;font-size:22px;color:#f3d58f}
+.rank-name{font-family:'Playfair Display',Georgia,serif;font-weight:900;font-size:24px;line-height:1.1}
+.rank-sub{font-size:14px;color:#cfdccf;line-height:1.4}
+.rank-score{font-family:'Playfair Display',Georgia,serif;font-weight:900;font-size:36px;color:#f3d58f;flex-shrink:0}
+/* end */
+.end-title{font-family:'Playfair Display',Georgia,serif;font-weight:900;font-size:46px;text-align:center;margin:0;color:#f3d58f;animation:fade .8s}
+.podium{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;align-items:end;min-height:340px;padding-top:10px}
+.pod{display:flex;flex-direction:column;align-items:center;gap:8px}
+.pod-name{font-family:'Playfair Display',Georgia,serif;font-weight:900;font-size:24px;text-align:center;line-height:1.05;word-break:break-word;opacity:0;animation:popIn .5s forwards}
+.pod-score{font-size:17px;font-weight:800;color:#f3d58f;opacity:0;animation:popIn .5s forwards}
+.pod-block{width:100%;border-radius:16px 16px 6px 6px;display:flex;justify-content:center;padding-top:12px;font-family:'Playfair Display',Georgia,serif;font-weight:900;font-size:48px;transform-origin:bottom;animation:rise .9s cubic-bezier(.2,.9,.25,1.1) both}
+.pos1 .pod-block{height:200px;background:linear-gradient(180deg,#f3d58f,#c99a36);color:#2a1d02;animation-delay:1.3s}
+.pos2 .pod-block{height:145px;background:linear-gradient(180deg,#e7e7e2,#a7a9a3);color:#23241f;animation-delay:.7s}
+.pos3 .pod-block{height:105px;background:linear-gradient(180deg,#e2a068,#a8652c);color:#2a1300;animation-delay:.2s}
+.pos1 .pod-name,.pos1 .pod-score{animation-delay:2.1s}
+.pos2 .pod-name,.pos2 .pod-score{animation-delay:1.5s}
+.pos3 .pod-name,.pos3 .pod-score{animation-delay:1s}
+.pos1 .pod-name{font-size:30px;color:#fff}
+.crown{font-size:34px;color:#f3d58f;opacity:0;animation:popIn .6s 2.4s forwards}
+@keyframes rise{from{transform:scaleY(0)}}
+@keyframes popIn{from{opacity:0;transform:translateY(12px) scale(.8)}to{opacity:1;transform:none}}
+.confetti{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:5}
+.cf{position:absolute;top:-40px;width:22px;height:22px;border-radius:50%;border:4px dashed #fff;animation:fall 3.6s linear infinite}
+.cf.c1{left:6%;background:#b3262f;animation-delay:1.8s}.cf.c2{left:18%;background:#e2b85a;animation-delay:2.4s;animation-duration:4.2s}.cf.c3{left:31%;background:#1d1a12;animation-delay:2s}.cf.c4{left:45%;background:#2a8f51;animation-delay:2.9s;animation-duration:3.2s}.cf.c5{left:58%;background:#e2b85a;animation-delay:2.2s}.cf.c6{left:70%;background:#7b43c2;animation-delay:3.1s;animation-duration:4s}.cf.c7{left:82%;background:#b3262f;animation-delay:2.6s}.cf.c8{left:93%;background:#e2b85a;animation-delay:1.9s;animation-duration:3.4s}
+@keyframes fall{to{transform:translateY(115vh) rotate(540deg)}}
+/* rules */
+.rules{display:flex;flex-direction:column;gap:10px;margin:0;padding:0;list-style:none}
+.rules li{font-size:18px;line-height:1.45;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.05)}
+.rules li b{color:#f3d58f}
+.lv-group{display:flex;flex-direction:column;gap:6px}
+.lv-head{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:12px;font-weight:800;font-size:16px}
+.ch-line{display:flex;justify-content:space-between;gap:12px;padding:8px 12px;font-size:16px;border-bottom:1px solid rgba(255,255,255,.08)}
+.ch-line b{color:#f3d58f;flex-shrink:0}
+/* settings */
+.set-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.08)}
+.set-label{font-size:17px;font-weight:700;flex-grow:1;min-width:0}
+.step{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.step .qbtn{width:48px;min-height:48px;background:rgba(0,0,0,.35);border-color:rgba(226,184,90,.5)}
+.step .txt.num{width:72px;min-height:48px;padding:6px}
+.bet-edit{display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:16px;background:rgba(255,255,255,.05)}
+.ch-edit{display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:16px;background:rgba(255,255,255,.05);border-left:0}
+.ch-edit-top{display:flex;gap:8px;align-items:center}
+.ch-edit-top select{flex-grow:1;min-width:0}
+.ch-edit-top .txt.num{width:84px}
+/* nav */
+.nav{position:sticky;bottom:0;z-index:20;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));background:rgba(4,26,16,.94);border-top:1px solid rgba(226,184,90,.35);padding:6px 6px 10px;backdrop-filter:blur(6px)}
+.nav-btn{position:relative;min-height:62px;border:0;background:none;color:#b9c9bc;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:13px;font-weight:800;border-radius:14px}
+.nav-btn svg{width:26px;height:26px}
+.nav-btn.on{color:#f3d58f;background:rgba(226,184,90,.14)}
+.nav-badge{position:absolute;top:4px;right:calc(50% - 26px);min-width:22px;height:22px;border-radius:11px;background:#7b43c2;color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;padding:0 5px;border:2px solid #0b3f28}
+.toast{position:fixed;left:50%;top:84px;transform:translateX(-50%);z-index:60;background:#f3d58f;color:#1f1604;font-weight:800;font-size:18px;padding:12px 20px;border-radius:999px;box-shadow:0 10px 30px rgba(0,0,0,.4);animation:toast .3s;max-width:92vw;text-align:center}
+@keyframes toast{from{transform:translate(-50%,-16px);opacity:0}}
+.modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:41;width:calc(100% - 32px);max-width:460px;max-height:88vh;overflow:auto;background:#0e4a30;border:1px solid #e2b85a;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:14px;animation:fade .2s}
+@media (max-width:560px){
+ .hero{grid-template-columns:minmax(0,1fr)}
+ .pill-v{font-size:34px}
+ .h1{font-size:34px}
+ .podium{min-height:300px}
+ .pos1 .pod-block{height:170px}.pos2 .pod-block{height:125px}.pos3 .pod-block{height:90px}
+}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01s !important;transition-duration:.01s !important}}
+</style>
+</helmet>
+<div class="app" style="width: 100%; min-height: 932px">
+
+<header class="top">
+<div class="brand"><span class="brand-mark">♠</span><span>Blackjack entre potes</span></div>
+<sc-if value="{{canUndo}}" hint-placeholder-val="{{ false }}">
+<button class="undo" onClick="{{undo}}" aria-label="Annuler la dernière action">
+<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"></path><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"></path></svg>
+<span>{{undoLabel}}</span>
+</button>
+</sc-if>
+</header>
+
+<main class="main">
+
+<sc-if value="{{showSetup}}" hint-placeholder-val="{{ true }}">
+<section class="panel">
+<div class="k">Nouvelle partie</div>
+<h1 class="h1">Qui s'assoit à la table ?</h1>
+<p class="muted">Ajoutez les joueurs dans l'ordre autour de la table (3 à 8). Le premier de la liste est le premier croupier, puis la main passe au joueur suivant, à sa gauche.</p>
+<div class="setup-list">
+<sc-for list="{{setup}}" as="p" hint-placeholder-count="3">
+<div class="setup-row">
+<span class="seat">{{p.num}}</span>
+<span class="setup-name">{{p.name}}</span>
+<button class="icon-btn" onClick="{{p.up}}" disabled="{{p.first}}" aria-label="Monter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"></path></svg></button>
+<button class="icon-btn" onClick="{{p.down}}" disabled="{{p.last}}" aria-label="Descendre"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></button>
+<button class="icon-btn" onClick="{{p.remove}}" aria-label="Retirer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+</div>
+</sc-for>
+<sc-if value="{{setupEmpty}}" hint-placeholder-val="{{ false }}">
+<div class="empty">Aucun joueur pour l'instant.</div>
+</sc-if>
+</div>
+<div class="row">
+<label class="sr" for="bj-newname">Nom du joueur</label>
+<input id="bj-newname" class="txt grow" type="text" value="{{newName}}" onChange="{{onNewName}}" onKeyDown="{{onNewKey}}" placeholder="Nom du joueur" autoComplete="off">
+<button class="btn gold" onClick="{{addName}}" disabled="{{cantAdd}}">Ajouter</button>
+</div>
+<p class="small">{{setupHint}}</p>
+<button class="btn big gold" onClick="{{startGame}}" disabled="{{cantStart}}">Lancer la partie</button>
+</section>
+</sc-if>
+
+<sc-if value="{{showGame}}" hint-placeholder-val="{{ false }}">
+<section class="status">
+<div class="pill"><span class="k">Manche</span><span class="pill-v">{{g.round}}<small>/{{g.rounds}}</small></span></div>
+<div class="pill"><span class="k">Donne</span><span class="pill-v">{{g.deal}}<small>/{{g.deals}}</small></span>
+<div class="dots"><sc-for list="{{g.dots}}" as="d"><span class="dot {{d.cls}}"></span></sc-for></div>
+</div>
+<div class="pill"><span class="k">Croupier</span><span class="pill-v">{{g.dealerTurn}}<small>/{{g.n}}</small></span></div>
+</section>
+<section class="hero">
+<div class="dealer-banner">
+<div class="dealer-chip">D</div>
+<div class="grow">
+<div class="k">Croupier en cours</div>
+<div class="dealer-name">{{g.dealerName}}</div>
+<div class="small">{{g.dealerLeft}}</div>
+</div>
+</div>
+<div class="bets">
+<div class="k">Mises · manche {{g.round}}</div>
+<div class="bet-v">{{g.betMin}} – {{g.betMax}} <small>jetons</small></div>
+</div>
+</section>
+<sc-if value="{{g.hasNewChallenges}}" hint-placeholder-val="{{ false }}">
+<button class="notice" onClick="{{goDefis}}">{{g.newChallengesText}}</button>
+</sc-if>
+<button class="btn big gold" onClick="{{nextDeal}}">{{g.nextLabel}}</button>
+
+<section class="players">
+<sc-for list="{{players}}" as="p" hint-placeholder-count="4">
+<article class="pcard {{p.cls}}">
+<div class="pc-head">
+<div class="pc-id">
+<span class="seat">{{p.num}}</span>
+<span class="pc-name">{{p.name}}</span>
+<sc-if value="{{p.isDealer}}"><span class="tag-dealer">Croupier</span></sc-if>
+</div>
+<div class="stack"><span class="stack-v">{{p.netText}}</span><span class="stack-k">à régler</span></div>
+</div>
+<div class="badges">
+<span class="badge">Défis : +{{p.bonus}}</span>
+<span class="badge {{p.rebuyCls}}">Recaves : {{p.rebuys}}</span>
+<span class="badge">Blackjacks : {{p.bj}}</span>
+</div>
+<div class="pc-foot3">
+<button class="btn ghost" onClick="{{p.addBJ}}">+1 Blackjack</button>
+<button class="btn red" onClick="{{p.rebuy}}">Recave</button>
+<button class="btn ghost" onClick="{{p.open}}" aria-label="Corriger {{p.name}}">Corriger</button>
+</div>
+</article>
+</sc-for>
+</section>
+</sc-if>
+
+<sc-if value="{{showSettle}}" hint-placeholder-val="{{ false }}">
+<section class="panel">
+<div class="k">Fin de la manche {{settle.round}}</div>
+<h1 class="h1">On règle les comptes</h1>
+<p class="muted">Chacun empoche ses bonus de défis ou rembourse ses dettes de recave à la banque, en vrais jetons. Touchez le bouton quand c'est fait.</p>
+<div>
+<sc-for list="{{settle.rows}}" as="r" hint-placeholder-count="4">
+<div class="set-row">
+<div class="grow"><div class="set-label">{{r.name}}</div><div class="small">{{r.sub}}</div></div>
+<span class="settle-amt {{r.cls}}">{{r.amount}}</span>
+<sc-if value="{{r.canSettle}}"><button class="btn sm gold" onClick="{{r.settle}}">{{r.btn}}</button></sc-if>
+<sc-if value="{{r.done}}"><span class="badge">Réglé</span></sc-if>
+</div>
+</sc-for>
+</div>
+<sc-if value="{{settle.anyLeft}}"><button class="btn" onClick="{{settle.all}}">Tout le monde a réglé</button></sc-if>
+<p class="small">Un joueur qui ne peut pas payer tout de suite ? Ce qui n'est pas réglé est reporté à la manche suivante, ou compté au décompte final.</p>
+<button class="btn big gold" onClick="{{settle.next}}">{{settle.nextLabel}}</button>
+</section>
+</sc-if>
+
+<sc-if value="{{showCount}}" hint-placeholder-val="{{ false }}">
+<section class="panel">
+<div class="k">Partie terminée</div>
+<h1 class="h1">On compte les jetons</h1>
+<p class="muted">Chacun compte ses jetons sur la table (recaves comprises) et on les saisit ici. L'application ajoute ce qui n'a pas été réglé en fin de manche et le bonus du roi du blackjack.</p>
+<div>
+<sc-for list="{{countRows}}" as="r">
+<div class="set-row">
+<div class="grow"><div class="set-label">{{r.name}}</div><div class="small">{{r.sub}}</div></div>
+<div class="step">
+<button class="qbtn" onClick="{{r.dec}}" aria-label="Moins 5">−5</button>
+<input class="txt num" type="number" inputMode="numeric" value="{{r.value}}" onChange="{{r.onInput}}" placeholder="?" aria-label="Jetons de {{r.name}}">
+<button class="qbtn" onClick="{{r.inc}}" aria-label="Plus 5">+5</button>
+</div>
+</div>
+</sc-for>
+</div>
+</section>
+<section class="panel">
+<h2 class="h3">Bonus du roi du blackjack</h2>
+<p class="small">{{bjKing}}</p>
+</section>
+<p class="small" style="text-align: center">{{countHint}}</p>
+<button class="btn big gold" onClick="{{reveal}}" disabled="{{cantReveal}}">Voir le podium</button>
+</sc-if>
+
+<sc-if value="{{showEnd}}" hint-placeholder-val="{{ false }}">
+<div class="confetti" aria-hidden="true"><span class="cf c1"></span><span class="cf c2"></span><span class="cf c3"></span><span class="cf c4"></span><span class="cf c5"></span><span class="cf c6"></span><span class="cf c7"></span><span class="cf c8"></span></div>
+<h1 class="end-title">Fin de partie</h1>
+<section class="podium">
+<sc-for list="{{podium}}" as="pp" hint-placeholder-count="3">
+<div class="pod {{pp.cls}}">
+<sc-if value="{{pp.first}}"><span class="crown">♛</span></sc-if>
+<span class="pod-name">{{pp.name}}</span>
+<span class="pod-score">{{pp.score}} pts</span>
+<div class="pod-block">{{pp.place}}</div>
+</div>
+</sc-for>
+</section>
+<section class="panel">
+<h2 class="h2">Décompte final</h2>
+<div class="rank">
+<sc-for list="{{ranking}}" as="r" hint-placeholder-count="4">
+<div class="rank-row {{r.cls}}">
+<span class="rank-pos">{{r.place}}</span>
+<div class="grow"><div class="rank-name">{{r.name}}</div><div class="rank-sub">{{r.detail}}</div></div>
+<span class="rank-score">{{r.score}}</span>
+</div>
+</sc-for>
+</div>
+<sc-if value="{{canSaveChamp}}"><button class="btn big gold" onClick="{{saveChamp}}">Enregistrer au championnat</button></sc-if>
+<sc-if value="{{champSaved}}"><p class="muted">Soirée enregistrée au championnat.</p></sc-if>
+<button class="btn ghost" onClick="{{backToCount}}">Modifier le décompte</button>
+<div class="grid2">
+<button class="btn" onClick="{{rematch}}">Revanche</button>
+<button class="btn" onClick="{{askNewGame}}">Nouvelle partie</button>
+</div>
+</section>
+</sc-if>
+
+<sc-if value="{{tabDefis}}" hint-placeholder-val="{{ false }}">
+<section class="panel">
+<div class="row wrap" style="justify-content: space-between">
+<div>
+<div class="k">{{defisKicker}}</div>
+<h1 class="h1">Cartes défis</h1>
+</div>
+<sc-if value="{{canFlipAll}}"><button class="btn gold" onClick="{{flipAll}}">Tout retourner</button></sc-if>
+</div>
+<p class="muted">{{defisHelp}}</p>
+</section>
+<sc-if value="{{cardsEmpty}}"><div class="empty">{{cardsEmptyText}}</div></sc-if>
+<section class="cards">
+<sc-for list="{{cards}}" as="c" hint-placeholder-count="4">
+<div class="flip {{c.cls}}">
+<button class="flip-inner" onClick="{{c.flip}}" aria-label="{{c.aria}}">
+<span class="face back">
+<span class="back-core">♠</span>
+<span class="back-lv lv-{{c.level}}">{{c.levelLabel}}</span>
+<span class="back-tap">Toucher pour retourner</span>
+</span>
+<span class="face front lv-{{c.level}}">
+<span class="front-lv">{{c.levelLabel}}</span>
+<span class="front-txt">{{c.text}}</span>
+<span class="front-note">{{c.note}}</span>
+<span class="front-rw">+{{c.reward}} <small>jetons</small></span>
+</span>
+</button>
+<sc-if value="{{c.flipped}}"><button class="btn gold claim" onClick="{{c.claim}}">Réclamer</button></sc-if>
+</div>
+</sc-for>
+</section>
+<sc-if value="{{hasClaims}}">
+<section class="panel">
+<h2 class="h3">Défis réclamés</h2>
+<div class="log">
+<sc-for list="{{claims}}" as="cl"><div class="log-row"><span class="lv-dot lv-{{cl.level}}"></span><span class="grow"><b>{{cl.name}}</b> · {{cl.text}}</span><b>+{{cl.reward}}</b></div></sc-for>
+</div>
+</section>
+</sc-if>
+</sc-if>
+
+<sc-if value="{{tabRank}}" hint-placeholder-val="{{ false }}">
+<sc-if value="{{hasGame}}">
+<section class="panel">
+<div class="k">{{rankKicker}}</div>
+<h1 class="h1">Classement</h1>
+<p class="small">{{rankHelp}}</p>
+<div class="rank">
+<sc-for list="{{ranking}}" as="r" hint-placeholder-count="4">
+<div class="rank-row {{r.cls}}">
+<span class="rank-pos">{{r.place}}</span>
+<div class="grow"><div class="rank-name">{{r.name}}</div><div class="rank-sub">{{r.detail}}</div></div>
+<span class="rank-score">{{r.score}}</span>
+</div>
+</sc-for>
+</div>
+<sc-if value="{{canEndNow}}"><button class="btn danger" onClick="{{askEnd}}">Terminer la partie maintenant</button></sc-if>
+</section>
+</sc-if>
+<section class="panel">
+<div class="k">Plusieurs soirées</div>
+<h2 class="h2">Championnat</h2>
+<p class="small">{{champRule}}</p>
+<sc-if value="{{champEmpty}}"><div class="empty">Aucune soirée enregistrée. À la fin d'une partie, touchez « Enregistrer au championnat ».</div></sc-if>
+<div class="rank">
+<sc-for list="{{champ}}" as="r" hint-placeholder-count="3">
+<div class="rank-row {{r.cls}}">
+<span class="rank-pos">{{r.place}}</span>
+<div class="grow"><div class="rank-name">{{r.name}}</div><div class="rank-sub">{{r.detail}}</div></div>
+<span class="rank-score">{{r.pts}}</span>
+</div>
+</sc-for>
+</div>
+<sc-if value="{{hasNights}}">
+<h3 class="h3">Soirées</h3>
+<div class="log">
+<sc-for list="{{nights}}" as="nt"><div class="log-row"><span class="grow"><b>{{nt.date}}</b> · {{nt.summary}}</span><button class="btn sm danger" onClick="{{nt.del}}">Supprimer</button></div></sc-for>
+</div>
+</sc-if>
+</section>
+</sc-if>
+
+<sc-if value="{{tabRules}}" hint-placeholder-val="{{ false }}">
+<section class="panel">
+<div class="k">À lire avant de miser</div>
+<h1 class="h1">Règles</h1>
+<ul class="rules">
+<sc-for list="{{rules}}" as="ru"><li><b>{{ru.title}}</b> {{ru.text}}</li></sc-for>
+</ul>
+</section>
+<section class="panel">
+<h2 class="h2">Les défis</h2>
+<p class="muted">{{rulesDefis}}</p>
+<sc-for list="{{levels}}" as="lv">
+<div class="lv-group">
+<div class="lv-head lv-{{lv.key}}">{{lv.label}}</div>
+<sc-for list="{{lv.items}}" as="it"><div class="ch-line"><span>{{it.text}}</span><b>+{{it.reward}}</b></div></sc-for>
+</div>
+</sc-for>
+</section>
+</sc-if>
+
+<sc-if value="{{tabSettings}}" hint-placeholder-val="{{ false }}">
+<section class="panel">
+<div class="k">Réglages</div>
+<h1 class="h1">La maison</h1>
+<p class="small">Les jetons de départ s'appliquent à la prochaine partie ; le reste s'applique tout de suite.</p>
+<div>
+<sc-for list="{{numRows}}" as="r">
+<div class="set-row">
+<span class="set-label">{{r.label}}</span>
+<div class="step">
+<button class="qbtn" onClick="{{r.dec}}" aria-label="Diminuer">−</button>
+<input class="txt num" type="number" inputMode="numeric" value="{{r.value}}" onChange="{{r.onInput}}" aria-label="{{r.label}}">
+<button class="qbtn" onClick="{{r.inc}}" aria-label="Augmenter">+</button>
+</div>
+</div>
+</sc-for>
+</div>
+</section>
+<section class="panel">
+<h2 class="h3">Mises par manche</h2>
+<sc-for list="{{betRows}}" as="b">
+<div class="bet-edit">
+<div class="k">Manche {{b.num}}</div>
+<div class="set-row" style="border: 0; padding: 0">
+<span class="set-label">Mise min</span>
+<div class="step">
+<button class="qbtn" onClick="{{b.minDec}}" aria-label="Diminuer">−</button>
+<input class="txt num" type="number" value="{{b.min}}" onChange="{{b.onMin}}" aria-label="Mise minimum">
+<button class="qbtn" onClick="{{b.minInc}}" aria-label="Augmenter">+</button>
+</div>
+</div>
+<div class="set-row" style="border: 0; padding: 0">
+<span class="set-label">Mise max</span>
+<div class="step">
+<button class="qbtn" onClick="{{b.maxDec}}" aria-label="Diminuer">−</button>
+<input class="txt num" type="number" value="{{b.max}}" onChange="{{b.onMax}}" aria-label="Mise maximum">
+<button class="qbtn" onClick="{{b.maxInc}}" aria-label="Augmenter">+</button>
+</div>
+</div>
+</div>
+</sc-for>
+</section>
+<section class="panel">
+<h2 class="h3">Défis ({{chCount}})</h2>
+<p class="small">Modifiez le texte, le niveau (et donc la couleur) et le gain de chaque défi.</p>
+<sc-for list="{{chEdit}}" as="c">
+<div class="ch-edit">
+<div class="ch-edit-top">
+<span class="lv-dot lv-{{c.level}}"></span>
+<select class="txt" value="{{c.level}}" onChange="{{c.onLevel}}" aria-label="Niveau">
+<option value="facile">Facile (vert)</option>
+<option value="moyen">Moyen (jaune)</option>
+<option value="difficile">Difficile (orange)</option>
+<option value="legendaire">Légendaire (rouge)</option>
+<option value="croupier">Croupier (violet)</option>
+</select>
+<input class="txt num" type="number" value="{{c.reward}}" onChange="{{c.onReward}}" aria-label="Gain en jetons">
+<button class="icon-btn" onClick="{{c.del}}" aria-label="Supprimer le défi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"></path></svg></button>
+</div>
+<input class="txt" type="text" value="{{c.text}}" onChange="{{c.onText}}" aria-label="Texte du défi">
+</div>
+</sc-for>
+<div class="divider"></div>
+<div class="k">Nouveau défi</div>
+<div class="ch-edit">
+<div class="ch-edit-top">
+<select class="txt" value="{{newCh.level}}" onChange="{{newCh.onLevel}}" aria-label="Niveau du nouveau défi">
+<option value="facile">Facile (vert)</option>
+<option value="moyen">Moyen (jaune)</option>
+<option value="difficile">Difficile (orange)</option>
+<option value="legendaire">Légendaire (rouge)</option>
+<option value="croupier">Croupier (violet)</option>
+</select>
+<input class="txt num" type="number" value="{{newCh.reward}}" onChange="{{newCh.onReward}}" aria-label="Gain du nouveau défi">
+</div>
+<input class="txt" type="text" value="{{newCh.text}}" onChange="{{newCh.onText}}" placeholder="Ex. Gagner une main avec deux 10" aria-label="Texte du nouveau défi">
+<button class="btn gold" onClick="{{newCh.add}}" disabled="{{newCh.disabled}}">Ajouter le défi</button>
+</div>
+<button class="btn ghost" onClick="{{askResetCh}}">Restaurer les défis d'origine</button>
+</section>
+<section class="panel">
+<h2 class="h3">Partie</h2>
+<sc-if value="{{hasGame}}"><button class="btn danger" onClick="{{askNewGame}}">Abandonner la partie et en créer une nouvelle</button></sc-if>
+<button class="btn danger" onClick="{{askResetSettings}}">Remettre les réglages par défaut</button>
+</section>
+</sc-if>
+
+</main>
+
+<nav class="nav" aria-label="Navigation">
+<button class="nav-btn {{nav.table}}" onClick="{{go.table}}">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="12" rx="10" ry="6.5"></ellipse><ellipse cx="12" cy="12" rx="5.5" ry="3"></ellipse></svg>
+<span>Table</span>
+</button>
+<button class="nav-btn {{nav.defis}}" onClick="{{go.defis}}">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="11" height="15" rx="2"></rect><path d="M17 4.5 21 6l-4.2 13"></path></svg>
+<span>Défis</span>
+<sc-if value="{{defisBadge}}"><span class="nav-badge">{{defisCount}}</span></sc-if>
+</button>
+<button class="nav-btn {{nav.rank}}" onClick="{{go.rank}}">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"></path><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4"></path></svg>
+<span>Classement</span>
+</button>
+<button class="nav-btn {{nav.rules}}" onClick="{{go.rules}}">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h6a2 2 0 0 1 2 2v14a2 2 0 0 0-2-2H4Z"></path><path d="M20 4h-6a2 2 0 0 0-2 2v14a2 2 0 0 1 2-2h6Z"></path></svg>
+<span>Règles</span>
+</button>
+<button class="nav-btn {{nav.settings}}" onClick="{{go.settings}}">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"></path><circle cx="16" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg>
+<span>Réglages</span>
+</button>
+</nav>
+
+<sc-if value="{{sheet.open}}" hint-placeholder-val="{{ false }}">
+<button class="overlay" onClick="{{closeSheet}}" aria-label="Fermer"></button>
+<div class="sheet" role="dialog" aria-label="Corriger un joueur">
+<div class="sheet-head">
+<div>
+<div class="k">{{sheet.kicker}}</div>
+<div class="pc-name">{{sheet.name}}</div>
+</div>
+<div class="stack"><span class="stack-v">{{sheet.netText}}</span><span class="stack-k">à régler</span></div>
+</div>
+<p class="small">Pour corriger une erreur. Le bouton Annuler en haut de l'écran annule aussi la dernière action.</p>
+<div class="set-row">
+<span class="set-label">Blackjacks</span>
+<div class="step"><button class="qbtn" onClick="{{sheet.bjMinus}}" aria-label="Retirer un blackjack">−</button><span class="stepv">{{sheet.bj}}</span><button class="qbtn" onClick="{{sheet.bjPlus}}" aria-label="Ajouter un blackjack">+</button></div>
+</div>
+<div class="set-row">
+<span class="set-label">Recaves (−{{sheet.malusEach}} chacune)</span>
+<div class="step"><button class="qbtn" onClick="{{sheet.rbMinus}}" aria-label="Retirer une recave">−</button><span class="stepv">{{sheet.rebuys}}</span><button class="qbtn" onClick="{{sheet.rbPlus}}" aria-label="Ajouter une recave">+</button></div>
+</div>
+<div class="set-row">
+<span class="set-label">Bonus défis</span>
+<div class="step"><button class="qbtn" onClick="{{sheet.bonusMinus}}" aria-label="Retirer 5">−5</button><span class="stepv">{{sheet.bonus}}</span><button class="qbtn" onClick="{{sheet.bonusPlus}}" aria-label="Ajouter 5">+5</button></div>
+</div>
+<button class="btn big gold" onClick="{{closeSheet}}">Fermer</button>
+</div>
+</sc-if>
+
+
+<sc-if value="{{claim.open}}" hint-placeholder-val="{{ false }}">
+<button class="overlay" onClick="{{closeClaim}}" aria-label="Fermer"></button>
+<div class="modal" role="dialog" aria-label="Réclamer le défi">
+<div class="k">Qui a réussi ?</div>
+<div class="face front lv-{{claim.level}}" style="position: relative; transform: none; min-height: 150px">
+<span class="front-lv">{{claim.levelLabel}}</span>
+<span class="front-txt">{{claim.text}}</span>
+<span class="front-rw">+{{claim.reward}} <small>jetons</small></span>
+</div>
+<p class="small">{{claim.note}}</p>
+<div class="pick-list">
+<sc-for list="{{claim.players}}" as="cp"><button class="pick" onClick="{{cp.pick}}" disabled="{{cp.disabled}}">{{cp.name}} <small>{{cp.sub}}</small></button></sc-for>
+</div>
+<button class="btn" onClick="{{closeClaim}}">Annuler</button>
+</div>
+</sc-if>
+
+<sc-if value="{{confirm.open}}" hint-placeholder-val="{{ false }}">
+<button class="overlay" onClick="{{confirm.no}}" aria-label="Fermer"></button>
+<div class="modal" role="dialog" aria-label="Confirmation">
+<h2 class="h3">{{confirm.text}}</h2>
+<div class="grid2">
+<button class="btn" onClick="{{confirm.no}}">Non</button>
+<button class="btn red" onClick="{{confirm.yes}}">Oui</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}"><div class="toast" role="status">{{toast}}</div></sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":430,"height":932}}'>
+class Component extends DCLogic {
+  constructor(...args) {
+    super(...args);
+    this.state = Object.assign({}, this.state || {}, this.loadAll());
+  }
+
+  storeKey() { return "bj-soiree-potes-v1"; }
+
+  levelDefs() {
+    return [
+      { key: "facile", label: "Facile" },
+      { key: "moyen", label: "Moyen" },
+      { key: "difficile", label: "Difficile" },
+      { key: "legendaire", label: "Légendaire" },
+      { key: "croupier", label: "Défi croupier" }
+    ];
+  }
+
+  defaultChallenges() {
+    const L = [
+      ["facile", 5, "Gagner une main après avoir doublé."],
+      ["facile", 5, "Gagner une main avec 4 cartes."],
+      ["facile", 5, "Battre un croupier qui montre un As."],
+      ["facile", 5, "Gagner une main avec exactement 20."],
+      ["facile", 5, "Tirer sur 16 et ne pas sauter."],
+      ["moyen", 10, "Faire un blackjack."],
+      ["moyen", 10, "Rester à 12 ou moins et gagner."],
+      ["moyen", 10, "Gagner en doublant sur 9 ou moins."],
+      ["moyen", 15, "Gagner 3 mains d'affilée."],
+      ["moyen", 15, "Gagner une main avec 5 cartes sans sauter."],
+      ["moyen", 15, "Splitter et gagner les deux mains."],
+      ["moyen", 15, "Faire 21 avec 3 cartes."],
+      ["difficile", 20, "Faire 21 avec 4 cartes."],
+      ["difficile", 20, "Splitter des As et faire au moins un blackjack."],
+      ["difficile", 20, "Avoir une paire de départ de la même couleur (ex. 8♥ 8♦) et gagner."],
+      ["difficile", 25, "Faire deux blackjacks dans la même manche."],
+      ["difficile", 30, "Faire 21 avec 5 cartes."],
+      ["difficile", 30, "Gagner une main avec 6 cartes sans sauter."],
+      ["legendaire", 40, "Faire 21 avec 6 cartes."],
+      ["legendaire", 75, "Faire 7-7-7."],
+      ["croupier", 10, "Battre tous les joueurs sur une même donne."],
+      ["croupier", 10, "Faire 21 avec 3 cartes ou plus en tant que croupier."],
+      ["croupier", 20, "Faire blackjack contre une table où tout le monde a misé le max."],
+      ["croupier", 40, "Ne perdre aucune donne sur tes 5 donnes de croupier."]
+    ];
+    return L.map((c, i) => ({ id: "c" + (i + 1), level: c[0], reward: c[1], text: c[2] }));
+  }
+
+  defaultSettings() {
+    return {
+      startChips: 100, rounds: 3, deals: 5, playerSlots: 3, dealerSlots: 1,
+      rebuyChips: 30, rebuyMalus: 50, bonusBJ: 10,
+      bets: [{ min: 2, max: 10 }, { min: 4, max: 20 }, { min: 6, max: 30 }],
+      challenges: this.defaultChallenges()
+    };
+  }
+
+  fixBets(s) {
+    if (!Array.isArray(s.bets) || !s.bets.length) s.bets = [{ min: 2, max: 10 }];
+    while (s.bets.length < s.rounds) {
+      const l = s.bets[s.bets.length - 1];
+      s.bets.push({ min: l.min + 2, max: l.max + 10 });
+    }
+    return s;
+  }
+
+  loadAll() {
+    let saved = null;
+    try { const raw = window.localStorage.getItem(this.storeKey()); if (raw) saved = JSON.parse(raw); } catch (e) { saved = null; }
+    saved = saved || {};
+    const settings = this.fixBets(Object.assign(this.defaultSettings(), saved.settings || {}));
+    if (!Array.isArray(settings.challenges)) settings.challenges = this.defaultChallenges();
+    return {
+      tab: "table",
+      settings: settings,
+      game: this.normGame(saved.game),
+      history: Array.isArray(saved.history) ? saved.history : [],
+      champ: saved.champ && Array.isArray(saved.champ.nights) ? saved.champ : { nights: [] },
+      setupNames: Array.isArray(saved.setupNames) ? saved.setupNames : [],
+      newName: "", sheet: null, bet: "", amount: "", claimId: null, confirm: null,
+      toast: "", vanishing: null, freshRound: false,
+      newCh: { text: "", level: "facile", reward: 5 }, handover: null
+    };
+  }
+
+  normGame(g) {
+    if (!g || !Array.isArray(g.players)) return null;
+    g.players.forEach(p => {
+      if (typeof p.bonus !== "number") p.bonus = 0;
+      if (typeof p.settled !== "number") p.settled = 0;
+      if (p.final === undefined) p.final = null;
+      if (typeof p.dealerNet !== "number") p.dealerNet = 0;
+      if (typeof p.bj !== "number") p.bj = 0;
+      if (typeof p.rebuys !== "number") p.rebuys = 0;
+    });
+    if (g.settling === undefined) g.settling = null;
+    return g;
+  }
+
+  componentDidUpdate() {
+    const s = this.state;
+    try {
+      window.localStorage.setItem(this.storeKey(), JSON.stringify({
+        settings: s.settings, game: s.game, history: s.history, champ: s.champ, setupNames: s.setupNames
+      }));
+    } catch (e) {}
+  }
+
+  componentWillUnmount() { clearTimeout(this._t); clearTimeout(this._v); }
+
+  flash(msg) {
+    clearTimeout(this._t);
+    this.setState({ toast: msg });
+    this._t = setTimeout(() => this.setState({ toast: "" }), 2400);
+  }
+
+  sign(n) { return n > 0 ? "+" + n : n < 0 ? "−" + Math.abs(n) : "0"; }
+
+  betFor(r) {
+    const b = this.state.settings.bets;
+    return b[Math.min(Math.max(r, 1), b.length) - 1] || { min: 2, max: 10 };
+  }
+
+  shuffle(a) {
+    const x = a.slice();
+    for (let i = x.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = x[i]; x[i] = x[j]; x[j] = t; }
+    return x;
+  }
+
+  // Keeps playerSlots player challenges + dealerSlots dealer challenges on the table.
+  fillChallenges(g, settings) {
+    const s = settings || this.state.settings;
+    const byId = {};
+    s.challenges.forEach(c => { byId[c.id] = c; });
+    g.current = g.current.filter(id => byId[id]);
+    const isD = id => byId[id].level === "croupier";
+    const needP = Math.max(0, s.playerSlots - g.current.filter(id => !isD(id)).length);
+    const needD = Math.max(0, s.dealerSlots - g.current.filter(isD).length);
+    const pool = s.challenges.filter(c => g.drawn.indexOf(c.id) < 0);
+    const pick = this.shuffle(pool.filter(c => c.level !== "croupier")).slice(0, needP).map(c => c.id)
+      .concat(this.shuffle(pool.filter(c => c.level === "croupier")).slice(0, needD).map(c => c.id));
+    g.drawn = g.drawn.concat(pick);
+    g.current = g.current.concat(pick);
+    g.fresh = pick;
+    return pick.length;
+  }
+
+  // ---- history / actions ----
+  act(label, fn, extra) {
+    const s = this.state;
+    if (!s.game) return;
+    const snap = JSON.stringify(s.game);
+    const g = JSON.parse(snap);
+    const msg = fn(g);
+    const history = s.history.concat([{ label: label, game: snap }]).slice(-60);
+    this.setState(Object.assign({ game: g, history: history }, extra || {}));
+    if (typeof msg === "string" && msg) this.flash(msg);
+  }
+
+  undo() {
+    const h = this.state.history;
+    if (!h.length) return;
+    const last = h[h.length - 1];
+    let g = null;
+    try { g = JSON.parse(last.game); } catch (e) { g = null; }
+    this.setState({ game: this.normGame(g), history: h.slice(0, -1), sheet: null, handover: null, claimId: null, confirm: null, tab: g && !g.finished && this.state.tab === "table" ? "table" : this.state.tab });
+    this.flash("Annulé : " + last.label);
+  }
+
+  playerAct(pid, label, fn) {
+    this.act(label, g => { const p = g.players.find(q => q.id === pid); if (p) return fn(p, g); });
+  }
+
+  startGame(names) {
+    const s = this.state.settings;
+    const t = Date.now();
+    const g = {
+      players: names.map((n, i) => ({ id: "p" + t + "_" + i, name: n, bonus: 0, settled: 0, final: null, rebuys: 0, bj: 0, dealerNet: 0, dealerSet: false })),
+      round: 1, deal: 1, dealer: 0, dealersDone: 0,
+      drawn: [], current: [], flipped: [], claims: [], dealSeq: 0,
+      finished: false, revealed: false, bestDealer: null, saved: false, startedAt: t
+    };
+    this.fillChallenges(g);
+    this.setState({ game: g, history: [], tab: "table", setupNames: names, confirm: null });
+    this.flash("C'est parti ! " + g.current.length + " défis sur la table");
+  }
+
+  nextDeal() {
+    const s = this.state.settings;
+    const g = this.state.game;
+    if (!g) return;
+    if (g.deal < s.deals) { this.act("Donne suivante", x => { x.deal++; }); return; }
+    this.rotate();
+  }
+
+  rotate() {
+    const s = this.state.settings;
+    let fresh = false;
+    const out = this.state.game.players[this.state.game.dealer];
+    this.act("Fin des donnes de " + out.name, g => {
+      const n = g.players.length;
+      const d = g.players[g.dealer];
+      g.deal = 1;
+      g.dealersDone++;
+      g.dealer = (g.dealer + 1) % n;
+      if (g.dealersDone >= n) {
+        g.dealersDone = 0;
+        g.settling = { round: g.round };
+        return "Fin de la manche " + g.round + " : on règle les comptes";
+      }
+      return g.players[g.dealer].name + " prend la main";
+    }, { handover: null, tab: "table" });
+  }
+
+  pending(p) { return p.bonus - p.rebuys * this.state.settings.rebuyMalus - p.settled; }
+
+  settleOne(pid) {
+    this.playerAct(pid, "règlement", q => { const d = this.pending(q); q.settled += d; return q.name + (d >= 0 ? " empoche " + d : " rembourse " + (-d)) + " jetons"; });
+  }
+
+  settleAll() {
+    this.act("Tout réglé", g => { g.players.forEach(q => { q.settled += this.pending(q); }); return "Comptes réglés"; });
+  }
+
+  endSettling() {
+    const s = this.state.settings;
+    this.act("Fin du règlement", g => {
+      g.settling = null;
+      if (g.round >= s.rounds) { g.finished = true; g.revealed = false; return "Partie terminée : place au décompte !"; }
+      g.round++;
+      this.fillChallenges(g);
+      return "Manche " + g.round + " : mises " + this.betFor(g.round).min + " à " + this.betFor(g.round).max;
+    });
+  }
+
+  claim(cid, pid) {
+    const c = this.state.settings.challenges.find(x => x.id === cid);
+    this.setState({ claimId: null, vanishing: cid });
+    clearTimeout(this._v);
+    this._v = setTimeout(() => {
+      this.act("Défi réclamé", g => {
+        const p = g.players.find(q => q.id === pid);
+        if (!p) return;
+        const reward = c ? c.reward : 0;
+        p.bonus += reward;
+        g.current = g.current.filter(x => x !== cid);
+        g.claims.push({ cid: cid, pid: pid, name: p.name, text: c ? c.text : "", level: c ? c.level : "facile", reward: reward, round: g.round });
+        const got = this.fillChallenges(g);
+        return p.name + " remporte +" + reward + " jetons" + (got ? " · nouvelle carte tirée" : " · la pioche est vide");
+      }, { vanishing: null });
+    }, 430);
+  }
+
+  setGameQuiet(fn) {
+    const g = JSON.parse(JSON.stringify(this.state.game));
+    fn(g);
+    this.setState({ game: g });
+  }
+
+  // ---- scoring ----
+  bonusInfo(g) {
+    const ps = g.players;
+    const maxBJ = Math.max.apply(null, ps.map(p => p.bj));
+    return { maxBJ: maxBJ, bjKings: maxBJ > 0 ? ps.filter(p => p.bj === maxBJ).map(p => p.id) : [] };
+  }
+
+  scoreRows(g, final) {
+    const s = this.state.settings;
+    const info = this.bonusInfo(g);
+    const rows = g.players.map(p => {
+      const bjB = info.bjKings.indexOf(p.id) >= 0 ? s.bonusBJ : 0;
+      const malus = p.rebuys * s.rebuyMalus;
+      const chips = final ? (p.final || 0) : 0;
+      const score = (final ? chips + this.pending(p) : p.bonus - malus) + bjB;
+      const parts = [];
+      if (final) { parts.push(chips + " jetons"); const pd = this.pending(p); if (pd) parts.push("non réglé " + this.sign(pd)); }
+      else parts.push("défis +" + p.bonus);
+      if (malus && !final) parts.push("−" + malus + " (" + p.rebuys + " recave" + (p.rebuys > 1 ? "s" : "") + ")");
+      if (bjB) parts.push("+" + bjB + " roi du blackjack");
+      parts.push(p.bj + " BJ");
+      return { id: p.id, name: p.name, score: score, detail: parts.join(" · ") };
+    });
+    rows.sort((a, b) => b.score - a.score);
+    let place = 0;
+    rows.forEach((r, i) => { if (i === 0 || r.score !== rows[i - 1].score) place = i + 1; r.place = place; r.cls = place === 1 ? "top1" : ""; });
+    return rows;
+  }
+
+  saveChamp() {
+    const g = this.state.game;
+    if (!g || !g.finished || g.saved) return;
+    const pts = [10, 7, 5, 3, 1];
+    const rows = this.scoreRows(g, true);
+    const night = { date: new Date().toISOString(), results: rows.map(r => ({ name: r.name, place: r.place, score: r.score, pts: pts[r.place - 1] || 0 })) };
+    const champ = { nights: this.state.champ.nights.concat([night]) };
+    const g2 = Object.assign({}, g, { saved: true });
+    this.setState({ champ: champ, game: g2 });
+    this.flash("Soirée ajoutée au championnat");
+  }
+
+  champRows() {
+    const map = {};
+    this.state.champ.nights.forEach(n => n.results.forEach(r => {
+      const k = r.name.trim().toLowerCase();
+      if (!map[k]) map[k] = { name: r.name.trim(), pts: 0, nights: 0, wins: 0 };
+      map[k].pts += r.pts; map[k].nights += 1; if (r.place === 1) map[k].wins += 1;
+    }));
+    const rows = Object.keys(map).map(k => map[k]).sort((a, b) => b.pts - a.pts || b.wins - a.wins);
+    let place = 0;
+    rows.forEach((r, i) => {
+      if (i === 0 || r.pts !== rows[i - 1].pts || r.wins !== rows[i - 1].wins) place = i + 1;
+      r.place = place; r.cls = place === 1 ? "top1" : "";
+      r.detail = r.nights + " soirée" + (r.nights > 1 ? "s" : "") + " · " + r.wins + " victoire" + (r.wins > 1 ? "s" : "");
+    });
+    return rows;
+  }
+
+  // ---- settings ----
+  setSettings(fn) {
+    const s = JSON.parse(JSON.stringify(this.state.settings));
+    fn(s);
+    this.fixBets(s);
+    const g0 = this.state.game;
+    if (g0 && !g0.finished) {
+      const g = JSON.parse(JSON.stringify(g0));
+      this.fillChallenges(g, s);
+      this.setState({ settings: s, game: g });
+    } else this.setState({ settings: s });
+  }
+
+  clampInt(v, lo, hi) { v = parseInt(v, 10); if (isNaN(v)) v = lo; return Math.max(lo, Math.min(hi, v)); }
+
+  askConfirm(text, yes) { this.setState({ confirm: { text: text, yes: yes } }); }
+
+  // ---- setup ----
+  addName() {
+    const n = (this.state.newName || "").trim().slice(0, 16);
+    const list = this.state.setupNames;
+    if (!n || list.length >= 8 || list.some(x => x.toLowerCase() === n.toLowerCase())) return;
+    this.setState({ setupNames: list.concat([n]), newName: "" });
+  }
+
+  moveName(i, d) {
+    const l = this.state.setupNames.slice();
+    const j = i + d;
+    if (j < 0 || j >= l.length) return;
+    const t = l[i]; l[i] = l[j]; l[j] = t;
+    this.setState({ setupNames: l });
+  }
+
+  renderVals() {
+    const st = this.state;
+    const s = st.settings;
+    const g = st.game;
+    const tab = st.tab;
+    const hasGame = !!g;
+    const fin = hasGame && g.finished;
+    const levelMap = {};
+    this.levelDefs().forEach(l => { levelMap[l.key] = l.label; });
+    const findCh = id => s.challenges.find(c => c.id === id);
+    const v = {};
+
+    // nav
+    const goTab = t => () => this.setState({ tab: t });
+    v.nav = { table: tab === "table" ? "on" : "", defis: tab === "defis" ? "on" : "", rank: tab === "rank" ? "on" : "", rules: tab === "rules" ? "on" : "", settings: tab === "settings" ? "on" : "" };
+    v.go = { table: goTab("table"), defis: goTab("defis"), rank: goTab("rank"), rules: goTab("rules"), settings: goTab("settings") };
+    v.goDefis = goTab("defis");
+    const currentCards = hasGame && !fin ? g.current.map(findCh).filter(Boolean).sort((a, b) => (a.level === "croupier") - (b.level === "croupier")) : [];
+    v.defisCount = currentCards.length;
+    v.defisBadge = currentCards.length > 0 && hasGame && g.flipped.length < currentCards.length;
+    v.hasGame = hasGame;
+
+    // undo
+    v.canUndo = hasGame && st.history.length > 0;
+    v.undoLabel = v.canUndo ? "Annuler : " + st.history[st.history.length - 1].label : "";
+    v.undo = () => this.undo();
+
+    // toast
+    v.hasToast = !!st.toast;
+    v.toast = st.toast;
+
+    // setup
+    const names = st.setupNames;
+    v.showSetup = tab === "table" && !hasGame;
+    v.setup = names.map((n, i) => ({
+      num: i + 1, name: n, first: i === 0, last: i === names.length - 1,
+      up: () => this.moveName(i, -1), down: () => this.moveName(i, 1),
+      remove: () => this.setState({ setupNames: names.filter((_, j) => j !== i) })
+    }));
+    v.setupEmpty = names.length === 0;
+    v.newName = st.newName;
+    v.onNewName = e => this.setState({ newName: e.target.value });
+    v.onNewKey = e => { if (e.key === "Enter") this.addName(); };
+    v.addName = () => this.addName();
+    const nn = (st.newName || "").trim();
+    const dup = names.some(x => x.toLowerCase() === nn.toLowerCase());
+    v.cantAdd = !nn || names.length >= 8 || dup;
+    v.cantStart = names.length < 3 || names.length > 8;
+    v.setupHint = dup ? "Ce nom est déjà à la table." : names.length >= 8 ? "Table complète : 8 joueurs maximum." : names.length < 3 ? "Encore " + (3 - names.length) + " joueur" + (3 - names.length > 1 ? "s" : "") + " minimum pour lancer. Chacun démarre avec " + s.startChips + " jetons." : names.length + " joueurs, " + s.startChips + " jetons chacun, " + s.rounds + " manches de " + names.length + " croupiers × " + s.deals + " donnes.";
+    v.startGame = () => this.startGame(names.slice());
+
+    // game dashboard
+    v.showGame = tab === "table" && hasGame && !fin && !g.settling;
+    v.showSettle = tab === "table" && hasGame && !fin && !!g.settling;
+    v.settle = { rows: [] };
+    if (v.showSettle) {
+      const rows = g.players.map(p => {
+        const d = this.pending(p);
+        return {
+          name: p.name, amount: this.sign(d), cls: d > 0 ? "pos" : d < 0 ? "neg" : "",
+          sub: d > 0 ? "prend " + d + " jetons à la banque (défis)" : d < 0 ? "rend " + (-d) + " jetons à la banque (recave)" : "rien à régler",
+          canSettle: d !== 0, done: d === 0, btn: d > 0 ? "Encaissé" : "Payé",
+          settle: () => this.settleOne(p.id)
+        };
+      });
+      const last = g.round >= s.rounds;
+      v.settle = {
+        round: g.settling.round, rows: rows, anyLeft: rows.some(r => r.canSettle),
+        all: () => this.settleAll(),
+        next: () => this.endSettling(),
+        nextLabel: last ? "Passer au décompte final" : "Lancer la manche " + (g.round + 1)
+      };
+    }
+    v.showCount = tab === "table" && fin && !g.revealed;
+    v.showEnd = tab === "table" && fin && !!g.revealed;
+    v.g = {}; v.players = [];
+    if (hasGame) {
+      const n = g.players.length;
+      const bet = this.betFor(g.round);
+      const dealer = g.players[g.dealer];
+      const nextP = g.players[(g.dealer + 1) % n];
+      const left = Math.max(0, s.deals - g.deal);
+      const lastDealer = g.dealersDone >= n - 1;
+      const lastDeal = g.deal >= s.deals;
+      let nextLabel = "Donne suivante";
+      if (lastDeal && lastDealer && g.round >= s.rounds) nextLabel = "Dernière donne jouée : fin de partie";
+      else if (lastDeal && lastDealer) nextLabel = "Manche suivante";
+      else if (lastDeal) nextLabel = "Croupier suivant : " + nextP.name;
+      const unflipped = currentCards.filter(c => g.flipped.indexOf(c.id) < 0).length;
+      v.g = {
+        round: g.round, rounds: s.rounds, deal: g.deal, deals: s.deals,
+        dots: Array.from({ length: s.deals }, (_, i) => ({ cls: i < g.deal ? "on" : "" })),
+        dealerTurn: g.dealersDone + 1, n: n,
+        dealerName: dealer.name,
+        dealerLeft: lastDeal ? (lastDealer ? "Dernière donne de la manche." : "Dernière donne, ensuite la main passe à " + nextP.name + ".") : "Encore " + left + " donne" + (left > 1 ? "s" : "") + " après celle-ci, puis la main passe à " + nextP.name + ".",
+        betMin: bet.min, betMax: bet.max,
+        nextLabel: nextLabel,
+        hasNewChallenges: unflipped > 0,
+        newChallengesText: unflipped + " carte" + (unflipped > 1 ? "s" : "") + " défi" + (unflipped > 1 ? "s" : "") + " à retourner"
+      };
+      v.players = g.players.map((p, i) => ({
+        num: i + 1, name: p.name, isDealer: i === g.dealer,
+        cls: i === g.dealer ? "is-dealer" : "",
+        netText: this.sign(this.pending(p)), bonus: p.bonus,
+        rebuys: p.rebuys, rebuyCls: p.rebuys ? "warn" : "", bj: p.bj,
+        rebuy: () => this.askConfirm(p.name + " est à 0 et reprend " + s.rebuyChips + " jetons (malus −" + s.rebuyMalus + " à la fin) ?", "rebuy:" + p.id),
+        addBJ: () => this.playerAct(p.id, p.name + " : +1 blackjack", q => { q.bj += 1; return q.name + " : " + q.bj + " blackjack" + (q.bj > 1 ? "s" : ""); }),
+        open: () => this.setState({ sheet: p.id })
+      }));
+    }
+    v.nextDeal = () => this.nextDeal();
+
+    // sheet
+    const sp = hasGame && st.sheet ? g.players.find(p => p.id === st.sheet) : null;
+    v.closeSheet = () => this.setState({ sheet: null });
+    if (sp) {
+      const idx = g.players.indexOf(sp);
+      const pa = (lbl, fn) => () => this.playerAct(sp.id, sp.name + " : " + lbl, fn);
+      v.sheet = {
+        open: true, name: sp.name, kicker: idx === g.dealer ? "Croupier en cours" : "Joueur " + (idx + 1),
+        netText: this.sign(this.pending(sp)),
+        bj: sp.bj, rebuys: sp.rebuys, bonus: "+" + sp.bonus, malusEach: s.rebuyMalus,
+        bjPlus: pa("+1 blackjack", q => { q.bj += 1; }),
+        bjMinus: pa("−1 blackjack", q => { q.bj = Math.max(0, q.bj - 1); }),
+        rbPlus: pa("+1 recave", q => { q.rebuys += 1; }),
+        rbMinus: pa("−1 recave", q => { q.rebuys = Math.max(0, q.rebuys - 1); }),
+        bonusPlus: pa("bonus +5", q => { q.bonus += 5; }),
+        bonusMinus: pa("bonus −5", q => { q.bonus = Math.max(0, q.bonus - 5); }),
+        noop: null
+      };
+    } else {
+      v.sheet = { open: false };
+    }
+
+
+    // challenges
+    v.tabDefis = tab === "defis";
+    const vanish = st.vanishing;
+    const seq = hasGame ? (g.dealSeq || 0) : 0;
+    v.cards = currentCards.map((c, i) => {
+      const flipped = g.flipped.indexOf(c.id) >= 0;
+      const isCr = c.level === "croupier";
+      return {
+        id: c.id, level: c.level, levelLabel: levelMap[c.level] || c.level, text: c.text, reward: c.reward,
+        flipped: flipped,
+        note: isCr ? "Réservé au croupier : " + g.players[g.dealer].name : "Premier qui réussit",
+        cls: (flipped ? "flipped " : "") + (vanish === c.id ? "vanish " : "") + ((g.fresh || []).indexOf(c.id) >= 0 && !flipped ? "deal-in" : ""),
+        aria: flipped ? c.text : "Retourner la carte défi " + (i + 1) + " (" + (levelMap[c.level] || "") + ")",
+        flip: () => { if (!flipped) this.setGameQuiet(x => { x.flipped = x.flipped.concat([c.id]); }); },
+        claim: () => this.setState({ claimId: c.id })
+      };
+    });
+    v.canFlipAll = currentCards.some(c => g.flipped.indexOf(c.id) < 0);
+    v.flipAll = () => this.setGameQuiet(x => { x.flipped = x.current.slice(); });
+    const poolLeft = hasGame ? s.challenges.filter(c => g.drawn.indexOf(c.id) < 0).length : s.challenges.length;
+    v.defisKicker = hasGame ? (fin ? "Partie terminée" : "Manche " + g.round + " · " + poolLeft + " défi" + (poolLeft > 1 ? "s" : "") + " encore dans la pioche") : "Pas de partie en cours";
+    v.defisHelp = "Il y a toujours " + s.playerSlots + " défi" + (s.playerSlots > 1 ? "s" : "") + " joueurs et " + s.dealerSlots + " défi" + (s.dealerSlots > 1 ? "s" : "") + " croupier sur la table. Le premier qui réussit un défi le réclame et empoche les jetons, puis une nouvelle carte du même type est tirée pour le remplacer. Le défi croupier (violet) ne peut être réclamé que par le croupier en cours. Un défi ne sort qu'une fois par partie.";
+    v.cardsEmpty = currentCards.length === 0;
+    v.cardsEmptyText = !hasGame ? "Créez une partie depuis l'onglet Table pour tirer les premiers défis." : fin ? "La partie est terminée." : "Tous les défis de cette manche sont réclamés. Rendez-vous à la manche suivante !";
+    const claims = hasGame ? g.claims.slice().reverse() : [];
+    v.hasClaims = claims.length > 0 && tab === "defis";
+    v.claims = claims.map(c => ({ name: c.name, text: c.text, reward: c.reward, level: c.level }));
+
+    // claim modal
+    const cc = hasGame && st.claimId ? findCh(st.claimId) : null;
+    v.closeClaim = () => this.setState({ claimId: null });
+    if (cc) {
+      const isCr = cc.level === "croupier";
+      v.claim = {
+        open: true, level: cc.level, levelLabel: levelMap[cc.level], text: cc.text, reward: cc.reward,
+        note: isCr ? "Défi croupier : seul " + g.players[g.dealer].name + " (croupier en cours) peut le réclamer." : "Touchez le nom du premier joueur qui l'a réussi.",
+        players: g.players.map((p, i) => ({
+          name: p.name, disabled: isCr && i !== g.dealer,
+          sub: (i === g.dealer ? "croupier · " : "") + "défis +" + p.bonus,
+          pick: () => this.claim(cc.id, p.id)
+        }))
+      };
+    } else {
+      v.claim = { open: false, players: [] };
+    }
+
+    // ranking
+    v.tabRank = tab === "rank";
+    const rows = hasGame ? this.scoreRows(g, fin) : [];
+    v.ranking = rows.map(r => ({ place: r.place, name: r.name, score: r.score, detail: r.detail, cls: r.cls }));
+    v.rankKicker = hasGame ? (fin ? "Résultat final" : "En direct · manche " + g.round + "/" + s.rounds) : "";
+    v.canEndNow = hasGame && !fin;
+    v.rankHelp = fin ? "Score = jetons comptés + ce qui n'a pas été réglé en fin de manche + bonus du roi du blackjack." : "En cours de partie, on ne compte pas les jetons : le classement montre gains des défis − malus de recave (réglés ou non), plus le bonus du roi du blackjack qu'on attribuerait maintenant. Le vrai classement se fait au décompte final.";
+    // counting
+    v.countRows = []; v.dealerPick = []; v.bjKing = ""; v.dealerHint = ""; v.countHint = "";
+    if (fin) {
+      const info = this.bonusInfo(g);
+      const setFinal = (id, val) => this.setGameQuiet(x => { const q = x.players.find(y => y.id === id); if (q) q.final = val; });
+      v.countRows = g.players.map(p => ({
+        name: p.name, value: p.final === null ? "" : p.final,
+        sub: (this.pending(p) ? "non réglé " + this.sign(this.pending(p)) + " · " : "tout est réglé · ") + p.bj + " BJ",
+        dec: () => setFinal(p.id, Math.max(0, (p.final || 0) - 5)),
+        inc: () => setFinal(p.id, (p.final || 0) + 5),
+        onInput: e => setFinal(p.id, e.target.value === "" ? null : this.clampInt(e.target.value, 0, 99999))
+      }));
+      const nm = id => (g.players.find(p => p.id === id) || {}).name;
+      v.bjKing = info.bjKings.length ? "Roi du blackjack (+" + s.bonusBJ + ") : " + info.bjKings.map(nm).join(", ") + " avec " + info.maxBJ + " blackjack" + (info.maxBJ > 1 ? "s" : "") + "." : "Aucun blackjack compté : pas de bonus du roi du blackjack.";
+      const missing = g.players.filter(p => p.final === null).length;
+      v.cantReveal = missing > 0;
+      v.countHint = missing ? "Encore " + missing + " joueur" + (missing > 1 ? "s" : "") + " à compter." : "Tout est compté !";
+    }
+    v.reveal = () => this.setGameQuiet(x => { x.revealed = true; });
+    v.backToCount = () => this.setGameQuiet(x => { x.revealed = false; x.saved = false; });
+    v.askEnd = () => this.askConfirm("Terminer la partie maintenant et afficher le podium ?", "end");
+    const pos = [1, 0, 2];
+    v.podium = pos.filter(i => rows[i]).map(i => ({ name: rows[i].name, score: rows[i].score, place: rows[i].place, first: i === 0, cls: "pos" + (i + 1) }));
+    v.canSaveChamp = fin && !g.saved;
+    v.champSaved = fin && !!g.saved;
+    v.saveChamp = () => this.saveChamp();
+    v.rematch = () => this.askConfirm("Relancer une partie avec les mêmes joueurs ?", "rematch");
+    v.askNewGame = () => this.askConfirm(fin ? "Revenir à la création de partie ?" : "Abandonner la partie en cours ?", "newgame");
+
+    // championship
+    const cr = this.champRows();
+    v.champ = cr;
+    v.champEmpty = cr.length === 0;
+    v.champRule = "Chaque soirée rapporte 10 / 7 / 5 / 3 / 1 points aux cinq premiers. Les joueurs sont reconnus par leur nom.";
+    const nights = st.champ.nights;
+    v.hasNights = nights.length > 0;
+    v.nights = nights.map((n, i) => ({
+      date: new Date(n.date).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }),
+      summary: n.results.filter(r => r.place === 1).map(r => r.name).join(", ") + " gagne · " + n.results.length + " joueurs",
+      del: () => this.askConfirm("Supprimer cette soirée du championnat ?", "delnight:" + i)
+    })).reverse();
+
+    // rules
+    v.tabRules = tab === "rules";
+    const betsTxt = s.bets.slice(0, s.rounds).map((b, i) => b.min + " à " + b.max + " en manche " + (i + 1)).join(", ");
+    v.rules = [
+      { title: "Joueurs.", text: "3 à 8 joueurs, chacun commence avec " + s.startChips + " jetons. On joue avec de vraies cartes, sans argent." },
+      { title: "Croupier tournant.", text: "Chaque joueur est croupier pendant " + s.deals + " donnes, puis la main passe à gauche. Une manche = tout le monde a été croupier une fois. " + s.rounds + " manche" + (s.rounds > 1 ? "s" : "") + " par partie." },
+      { title: "Le croupier", text: "tire jusqu'à 16 et reste à 17. Blackjack payé 3 contre 2, arrondi au jeton supérieur. Pas d'assurance, un seul split par main." },
+      { title: "Mises :", text: betsTxt + "." },
+      { title: "Recave.", text: "Un joueur à 0 jeton reprend " + s.rebuyChips + " jetons, avec un malus de −" + s.rebuyMalus + " au décompte final." },
+      { title: "Défis.", text: "En permanence, " + s.playerSlots + " défi" + (s.playerSlots > 1 ? "s" : "") + " joueurs et " + s.dealerSlots + " défi" + (s.dealerSlots > 1 ? "s" : "") + " croupier sont en jeu. Le premier qui réussit un défi le réclame et gagne les jetons indiqués ; la carte est aussitôt remplacée par une nouvelle du même type. Le défi croupier est réservé au croupier en cours." },
+      { title: "Fin de manche.", text: "On règle les comptes : chacun prend à la banque les jetons gagnés avec les défis, ou rembourse ses malus de recave (" + s.rebuyMalus + " jetons par recave). Ce qui ne peut pas être payé est reporté." },
+      { title: "Décompte.", text: "Les mises se jouent avec les vrais jetons, sans rien saisir. L'application compte les gains des défis, les recaves et les blackjacks. À la fin, chacun compte ses jetons et on les saisit." },
+      { title: "Classement final", text: "jetons comptés + ce qui reste à régler (défis − malus de recave). Bonus de fin : +" + s.bonusBJ + " au joueur qui a fait le plus de blackjacks (en cas d'égalité, chacun le prend)." },
+      { title: "Championnat.", text: "Sur plusieurs soirées : 10 / 7 / 5 / 3 / 1 points selon la place, cumulés au classement général." }
+    ];
+    v.rulesDefis = "Chaque niveau a sa couleur : vert (facile), jaune (moyen), orange (difficile), rouge (légendaire) et violet pour les défis croupier.";
+    v.levels = this.levelDefs().map(l => ({ key: l.key, label: l.label, items: s.challenges.filter(c => c.level === l.key).map(c => ({ text: c.text, reward: c.reward })) })).filter(l => l.items.length);
+
+    // settings
+    v.tabSettings = tab === "settings";
+    const defs = [
+      ["startChips", "Jetons de départ", 10, 1000, 10],
+      ["rounds", "Nombre de manches", 1, 10, 1],
+      ["deals", "Donnes par croupier", 1, 20, 1],
+      ["playerSlots", "Défis joueurs sur la table", 0, 12, 1],
+      ["dealerSlots", "Défis croupier sur la table", 0, 6, 1],
+      ["rebuyChips", "Jetons de recave", 5, 500, 5],
+      ["rebuyMalus", "Malus par recave", 0, 500, 5],
+      ["bonusBJ", "Bonus du roi du blackjack", 0, 200, 5]
+    ];
+    const setNum = (k, lo, hi, val) => this.setSettings(x => { x[k] = this.clampInt(val, lo, hi); });
+    v.numRows = defs.map(d => ({
+      label: d[1], value: s[d[0]],
+      dec: () => setNum(d[0], d[2], d[3], s[d[0]] - d[4]),
+      inc: () => setNum(d[0], d[2], d[3], s[d[0]] + d[4]),
+      onInput: e => { if (e.target.value !== "") setNum(d[0], d[2], d[3], e.target.value); }
+    }));
+    const setBet = (i, key, val) => this.setSettings(x => {
+      const b = x.bets[i];
+      b[key] = this.clampInt(val, 1, 9999);
+      if (key === "min" && b.max < b.min) b.max = b.min;
+      if (key === "max" && b.min > b.max) b.min = b.max;
+    });
+    v.betRows = s.bets.slice(0, s.rounds).map((b, i) => ({
+      num: i + 1, min: b.min, max: b.max,
+      minDec: () => setBet(i, "min", b.min - 1), minInc: () => setBet(i, "min", b.min + 1),
+      maxDec: () => setBet(i, "max", b.max - 1), maxInc: () => setBet(i, "max", b.max + 1),
+      onMin: e => { if (e.target.value !== "") setBet(i, "min", e.target.value); },
+      onMax: e => { if (e.target.value !== "") setBet(i, "max", e.target.value); }
+    }));
+    const editCh = (id, patch) => this.setSettings(x => { const c = x.challenges.find(y => y.id === id); if (c) Object.assign(c, patch); });
+    v.chCount = s.challenges.length;
+    v.chEdit = s.challenges.map(c => ({
+      level: c.level, reward: c.reward, text: c.text,
+      onLevel: e => editCh(c.id, { level: e.target.value }),
+      onReward: e => { if (e.target.value !== "") editCh(c.id, { reward: this.clampInt(e.target.value, 0, 999) }); },
+      onText: e => editCh(c.id, { text: e.target.value }),
+      del: () => this.askConfirm("Supprimer le défi « " + c.text + " » ?", "delch:" + c.id)
+    }));
+    const nc = st.newCh;
+    v.newCh = {
+      text: nc.text, level: nc.level, reward: nc.reward, disabled: !nc.text.trim(),
+      onText: e => this.setState({ newCh: Object.assign({}, nc, { text: e.target.value }) }),
+      onLevel: e => this.setState({ newCh: Object.assign({}, nc, { level: e.target.value }) }),
+      onReward: e => this.setState({ newCh: Object.assign({}, nc, { reward: e.target.value === "" ? "" : this.clampInt(e.target.value, 0, 999) }) }),
+      add: () => {
+        if (!nc.text.trim()) return;
+        this.setSettings(x => { x.challenges.push({ id: "u" + Date.now(), level: nc.level, reward: this.clampInt(nc.reward, 0, 999), text: nc.text.trim() }); });
+        this.setState({ newCh: { text: "", level: nc.level, reward: nc.reward } });
+        this.flash("Défi ajouté");
+      }
+    };
+    v.askResetCh = () => this.askConfirm("Remplacer tous les défis par la liste d'origine ?", "resetch");
+    v.askResetSettings = () => this.askConfirm("Remettre tous les réglages (et les défis) par défaut ?", "resetsettings");
+
+    // confirm
+    const cf = st.confirm;
+    v.confirm = cf ? {
+      open: true, text: cf.text,
+      no: () => this.setState({ confirm: null }),
+      yes: () => this.runConfirm(cf.yes)
+    } : { open: false };
+
+    return v;
+  }
+
+  runConfirm(key) {
+    this.setState({ confirm: null });
+    if (key === "end") {
+      this.act("Fin de partie", g => { g.finished = true; g.revealed = false; return "Place au décompte !"; }, { tab: "table" });
+    } else if (key.indexOf("rebuy:") === 0) {
+      const id = key.slice(6); const s = this.state.settings;
+      this.playerAct(id, ((this.state.game.players.find(p => p.id === id) || {}).name || "") + " : recave", q => { q.rebuys += 1; return q.name + " se recave : prenez " + s.rebuyChips + " jetons"; });
+    } else if (key === "rematch") {
+      const g = this.state.game;
+      if (g) this.startGame(g.players.map(p => p.name));
+    } else if (key === "newgame") {
+      const g = this.state.game;
+      this.setState({ game: null, history: [], tab: "table", setupNames: g ? g.players.map(p => p.name) : this.state.setupNames });
+    } else if (key === "resetch") {
+      this.setSettings(x => { x.challenges = this.defaultChallenges(); });
+      this.flash("Défis d'origine restaurés");
+    } else if (key === "resetsettings") {
+      this.setState({ settings: this.defaultSettings() });
+      this.flash("Réglages par défaut");
+    } else if (key.indexOf("delch:") === 0) {
+      const id = key.slice(6);
+      this.setSettings(x => { x.challenges = x.challenges.filter(c => c.id !== id); });
+    } else if (key.indexOf("delnight:") === 0) {
+      const i = parseInt(key.slice(9), 10);
+      this.setState({ champ: { nights: this.state.champ.nights.filter((_, j) => j !== i) } });
+    }
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+node_modules
+dist
+e2e/captures
+.DS_Store
