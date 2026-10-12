@@ -97,7 +97,7 @@ export function Stepper({
   const inc = step === 1 && !bigStep ? '+' : '+' + step;
   const big = (sign: 1 | -1) =>
     bigStep ? (
-      <button type="button" class="qbtn big-step" onClick={() => onChange(clamp((value ?? 0) + sign * bigStep))} aria-label={(sign > 0 ? 'Ajouter ' : 'Retirer ') + bigStep + ' : ' + label}>
+      <button type="button" class={'qbtn big-step ' + (sign > 0 ? 'inc' : 'dec')} onClick={() => onChange(clamp((value ?? 0) + sign * bigStep))} aria-label={(sign > 0 ? 'Ajouter ' : 'Retirer ') + bigStep + ' : ' + label}>
         {(sign > 0 ? '+' : '−') + bigStep}
       </button>
     ) : null;
@@ -111,7 +111,7 @@ export function Stepper({
       </div>
       <div class="step">
         {big(-1)}
-        <button type="button" class="qbtn" onClick={() => onChange(clamp((value ?? 0) - step))} aria-label={decLabel ?? 'Diminuer ' + label}>
+        <button type="button" class="qbtn dec" onClick={() => onChange(clamp((value ?? 0) - step))} aria-label={decLabel ?? 'Diminuer ' + label}>
           {dec}
         </button>
         <input
@@ -140,7 +140,7 @@ export function Stepper({
           onInput={(e) => commit(e, true)}
           onChange={(e) => commit(e, false)}
         />
-        <button type="button" class="qbtn" onClick={() => onChange(clamp((value ?? 0) + step))} aria-label={incLabel ?? 'Augmenter ' + label}>
+        <button type="button" class="qbtn inc" onClick={() => onChange(clamp((value ?? 0) + step))} aria-label={incLabel ?? 'Augmenter ' + label}>
           {inc}
         </button>
         {big(1)}

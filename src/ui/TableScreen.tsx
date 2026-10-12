@@ -270,11 +270,16 @@ function Table({ game: g, settings: s, controls, onBet, onReady, onPlay, onNext,
                     onChange={(x) => {
                       if (x !== null) onBet(p.id, x);
                     }}
-                    sub={<div class="small">{chipsOf(g, p.id) + ' jetons · mise ' + br.min + ' à ' + br.max}</div>}
+                    sub={
+                      <span class="small bet-chips">
+                        {chipsOf(g, p.id) + ' jetons'}
+                        {br.max < range.max && ' · max ' + br.max}
+                      </span>
+                    }
                   />
                 );
               })}
-              <button type="button" class="btn big gold" onClick={() => onReady(myPending.map((p) => p.id), true)}>
+              <button type="button" class="btn big gold bet-go" onClick={() => onReady(myPending.map((p) => p.id), true)}>
                 {solo || waitingFor.length === myPending.length ? 'Distribuer' : 'Valider ma mise'}
               </button>
             </>
