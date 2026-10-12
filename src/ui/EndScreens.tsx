@@ -252,7 +252,7 @@ export function EndScreen({
   onEdit: () => void;
   onRematch: () => void;
   onNewGame: () => void;
-  /** Invité d'une partie à plusieurs téléphones : l'hôte enregistre et relance. */
+  /** Invité d'une partie en ligne : l'hôte enregistre et relance. */
   guest?: boolean;
 }) {
   const rows = finalRanking(g, s);
@@ -294,7 +294,7 @@ export function EndScreen({
             : "Score = jetons comptés + ce qui n'a pas été réglé en fin de manche + bonus du roi du blackjack."}
         </p>
         <FinalTable rows={rows} virtual={g.virtual !== null} />
-        {guest && <p class="muted">Le téléphone hôte enregistre la soirée au championnat et peut lancer la revanche.</p>}
+        {guest && <p class="muted">Le joueur qui a ouvert la salle enregistre la soirée au championnat et peut lancer la revanche.</p>}
         {!guest && !saved && (
           <button type="button" class="btn big gold" onClick={onSave}>
             Enregistrer au championnat

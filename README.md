@@ -106,27 +106,39 @@ par Netlify et GitHub Pages) ; en local, `localhost` suffit.
 
 Après une nouvelle mise en ligne, l'application se met à jour à la visite suivante.
 
-## Jouer à plusieurs téléphones
+## Jouer en ligne, chacun sur son appareil
 
-Sur l'écran de création : **Tout dans l'app**, puis **Sur quels téléphones ?** →
-**Chacun sur le sien**, puis **Ouvrir la salle**. Ce téléphone (l'hôte) ouvre une salle
-(code de 4 lettres) et fait tourner la partie ; les autres la rejoignent avec le code
-(**Rejoindre une partie**, en haut de l'écran de création) ou le lien partagé, misent et
-jouent leurs mains depuis leur téléphone. Le nombre de manches et de donnes se règle dès
-l'écran de création, et encore dans la salle d'attente.
+Sur téléphone, tablette ou ordinateur (dans le navigateur). Sur l'écran de création :
+**Tout dans l'app**, puis **Où joue chacun ?** → **Chacun sur le sien**, puis
+**Ouvrir la salle**. L'hôte ouvre une salle (code de 4 lettres) et fait tourner la
+partie ; les autres joueurs la rejoignent depuis la liste **Parties ouvertes** (en haut
+de l'onglet Table), avec le code (**Rejoindre une partie**) ou avec le lien partagé, puis
+misent et jouent leurs mains chacun de leur côté. Le nombre de manches et de donnes se
+règle dès l'écran de création, et encore dans la salle d'attente.
 
-- **Arrivée en cours de partie** : le téléphone regarde la table et sait quand il jouera ;
-  ses joueurs s'assoient au début de la manche suivante (à la partie suivante si c'était
-  la dernière manche). L'hôte les voit dans un bandeau « Arrivés en cours de partie ».
-- **Téléphone perdu ou éteint** : si un joueur revient sur un autre téléphone avec le même
+- **Ouverte ou verrouillée** : une salle est ouverte par défaut, elle apparaît alors dans
+  la liste **Parties ouvertes** de tous ceux qui sont sur l'écran de création. L'hôte la
+  verrouille avec l'interrupteur de la salle d'attente, ou le cadenas du bandeau pendant
+  la partie : elle sort de la liste et refuse les nouveaux venus, même avec le code. Ceux
+  qui y sont déjà peuvent toujours revenir (rechargement, coupure réseau).
+- **Arrivée en cours de partie** : le nouveau joueur regarde la table et sait quand il
+  jouera ; il s'assoit au début de la manche suivante (à la partie suivante si c'était
+  la dernière manche). L'hôte le voit dans un bandeau « Arrivés en cours de partie ».
+- **Appareil perdu ou éteint** : si un joueur revient sur un autre appareil avec le même
   prénom, l'hôte touche **Donner la place de …** sur son siège (le bouton apparaît quand
-  l'ancien téléphone ne répond plus depuis 12 secondes) et choisit le nouveau téléphone,
-  ou le sien pour jouer à sa place. Jetons, défis et main en cours sont conservés.
-- **Nouvelle partie** : l'hôte revient à la salle d'attente, et tous les téléphones avec lui.
+  l'ancien appareil ne répond plus depuis 12 secondes) et choisit le nouveau, ou se
+  choisit lui-même pour jouer à sa place. Jetons, défis et main en cours sont conservés.
+- **Nouvelle partie** : l'hôte revient à la salle d'attente, et tous les joueurs avec lui.
 
 Les messages passent par Supabase Realtime (diffusion, sans table ni compte),
 sur le projet Supabase de Dooka : les salles sont des canaux `bj-ABCD`, rien n'est écrit
-dans sa base. Les options n'apparaissent que si ces deux valeurs sont connues au build :
+dans sa base. La liste des parties ouvertes est un canal commun `bj-SALLES` où chaque
+hôte d'une salle ouverte s'annonce toutes les 5 secondes (une salle muette depuis 15
+secondes sort de la liste). Le verrou est appliqué par l'hôte, qui ne répond plus aux
+inconnus, et par l'application de l'invité, qui ignore alors la table : c'est un verrou
+entre amis, pas une protection contre quelqu'un qui écouterait le canal.
+
+Les options n'apparaissent que si ces deux valeurs sont connues au build :
 
 ```
 VITE_SUPABASE_URL=https://ybnacpzicldzsmmypupj.supabase.co
@@ -163,7 +175,7 @@ src/
     virtual.ts     partie « Tout dans l'app » : tas, mises, recaves automatiques, enchaînement
     detect.ts      validation automatique des défis à partir des mains
     intents.ts     demandes des joueurs (miser, jouer…), appliquées localement ou par l'hôte
-  net/           parties à plusieurs téléphones (messages, salle d'attente, transport, hook)
+  net/           parties en ligne (messages, salle d'attente, annuaire des salles, transport, hook)
   storage.ts     accès à localStorage (protégé par try/catch)
   App.tsx        état de l'application et actions
   ui/            écrans et composants (Preact)

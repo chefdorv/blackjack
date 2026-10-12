@@ -1,4 +1,4 @@
-// Contrôleur de salle à plusieurs téléphones : ouvre le canal, échange les messages,
+// Contrôleur de salle en ligne : ouvre le canal, échange les messages,
 // suit qui est connecté. L'hôte diffuse l'état de la partie ; l'invité l'affiche et envoie
 // ses demandes. La logique de jeu reste entièrement chez l'hôte.
 
@@ -16,7 +16,7 @@ export interface GuestView {
   game: Game;
   settings: Settings;
   seats: Seats;
-  /** Téléphones arrivés en cours de partie, en attente de la manche suivante. */
+  /** Appareils arrivés en cours de partie, en attente de la manche suivante. */
   guests: LobbyEntry[];
 }
 
@@ -36,6 +36,8 @@ export interface RoomApi {
   offline: (device: string) => boolean;
   hostOffline: boolean;
   closedByHost: boolean;
+  /** Invité : l'hôte a verrouillé la salle avant qu'on y entre. */
+  lockedOut: boolean;
   sendIntent: (intent: Intent) => void;
   close: (farewell: boolean) => void;
 }
@@ -55,8 +57,8 @@ export function useRoom({
   device: string;
   hostGame: Game | null;
   hostSettings: Settings;
-  /** Hôte : un appareil annonce ses joueurs (salle d'attente). */
-  onHello: (from: string, names: string[]) => void;
+  /** Hôte : un appareil annonce ses joueurs (salle d'attente) ; false s'il est refusé (salle verrouillée). */
+  onHello: (from: string, names: string[]) => boolean;
   onLeave: (from: string) => void;
   /** Hôte : demande d'un invité. */
   onIntent: (from: string, intent: Intent) => void;
@@ -65,9 +67,11 @@ export function useRoom({
   const [view, setView] = useState<GuestView | null>(null);
   const [guestLobby, setGuestLobby] = useState<{ lobby: LobbyEntry[]; mode: DealerMode }>({ lobby: [], mode: 'tournant' });
   const [closedByHost, setClosedByHost] = useState(false);
+  const [lockedOut, setLockedOut] = useState(false);
+  const refused = useRef(false);
   const [now, setNow] = useState(() => Date.now());
   const seen = useRef<Record<string, number>>({});
-  // Début de l'écoute : un téléphone pas encore entendu n'est pas « déconnecté » avant OFFLINE_MS.
+  // Début de l'écoute : un appareil pas encore entendu n'est pas « déconnecté » avant OFFLINE_MS.
   const since = useRef(Date.now());
   const hostDevice = useRef<string | null>(null);
   const transport = useRef<Transport | null>(null);
@@ -97,6 +101,8 @@ export function useRoom({
     if (!room || !kind) return;
     setView(null);
     setClosedByHost(false);
+    setLockedOut(false);
+    refused.current = false;
     seen.current = {};
     since.current = Date.now();
     hostDevice.current = null;
@@ -110,13 +116,26 @@ export function useRoom({
         const r = latest.current.room;
         if (r?.role === 'host') {
           if (m.k === 'hello') {
-            latest.current.onHello(m.from, m.names);
-            // Partie lancée : le téléphone (re)venu reçoit la table, une fois son arrivée notée par l'hôte.
+            if (!latest.current.onHello(m.from, m.names)) {
+              send({ k: 'locked', from: device, to: m.from });
+              return;
+            }
+            // Partie lancée : l'appareil (re)venu reçoit la table, une fois son arrivée notée par l'hôte.
             if (r.seats) window.setTimeout(sendState, 0);
           } else if (m.k === 'intent') latest.current.onIntent(m.from, m.intent);
           else if (m.k === 'leave') latest.current.onLeave(m.from);
         } else if (r?.role === 'guest') {
           if (m.k === 'lobby' || m.k === 'state' || m.k === 'closed') hostDevice.current = m.from;
+          if (m.k === 'lobby' || m.k === 'state') {
+            // Refusé par une salle verrouillée : on ne regarde pas la table des autres,
+            // sauf si l'hôte nous a finalement accueillis (salle rouverte entre-temps).
+            const me = m.lobby.some((e) => e.device === device) || (m.k === 'state' && (Object.values(m.seats).includes(device) || m.guests.some((e) => e.device === device)));
+            if (refused.current && !me) return;
+            if (me && refused.current) {
+              refused.current = false;
+              setLockedOut(false);
+            }
+          }
           if (m.k === 'lobby') {
             // L'hôte est (re)venu à la salle d'attente : on quitte la table précédente.
             setGuestLobby({ lobby: m.lobby, mode: m.mode });
@@ -125,6 +144,12 @@ export function useRoom({
             setGuestLobby((x) => ({ ...x, lobby: m.lobby }));
             setView((cur) => (cur && cur.rev >= m.rev ? cur : { rev: m.rev, game: m.game, settings: m.settings, seats: m.seats, guests: m.guests }));
           } else if (m.k === 'closed') setClosedByHost(true);
+          else if (m.k === 'locked' && m.to === device) {
+            refused.current = true;
+            setLockedOut(true);
+            setView(null);
+            setGuestLobby((x) => ({ ...x, lobby: [] }));
+          }
         }
       },
       (st) => {
@@ -174,6 +199,7 @@ export function useRoom({
     offline,
     hostOffline,
     closedByHost,
+    lockedOut: room?.role === 'guest' && lockedOut,
     sendIntent: (intent) => send({ k: 'intent', from: device, intent }),
     close: (farewell) => {
       if (farewell) send(room?.role === 'host' ? { k: 'closed', from: device } : { k: 'leave', from: device });

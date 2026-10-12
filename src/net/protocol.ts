@@ -1,4 +1,4 @@
-// Messages échangés entre le téléphone hôte et les invités, et logique de la salle d'attente.
+// Messages échangés entre l'appareil hôte et les invités, et logique de la salle d'attente.
 // Tout ce qui arrive du réseau est relu défensivement, comme ce qui sort du localStorage.
 
 import { parseIntent, type Intent } from '../game/intents';
@@ -42,7 +42,9 @@ export type NetMessage =
   | { k: 'intent'; from: string; intent: Intent }
   | { k: 'here'; from: string }
   | { k: 'leave'; from: string }
-  | { k: 'closed'; from: string };
+  | { k: 'closed'; from: string }
+  /** Hôte d'une salle verrouillée : réponse à un appareil inconnu qui veut entrer. */
+  | { k: 'locked'; from: string; to: string };
 
 function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -94,6 +96,8 @@ export function parseMessage(v: unknown): NetMessage | null {
       const intent = parseIntent(v.intent);
       return intent ? { k: 'intent', from, intent } : null;
     }
+    case 'locked':
+      return typeof v.to === 'string' && v.to ? { k: 'locked', from, to: v.to } : null;
     case 'here':
     case 'leave':
     case 'closed':
@@ -144,7 +148,7 @@ export function seatsFor(game: Game, lobby: readonly LobbyEntry[]): Seats {
   return seats;
 }
 
-/** Un téléphone arrive alors que la partie est lancée : on retient ses joueurs (remplace son annonce précédente). */
+/** Un appareil arrive alors que la partie est lancée : on retient ses joueurs (remplace son annonce précédente). */
 export function noteGuest(guests: readonly LobbyEntry[], device: string, names: readonly string[]): LobbyEntry[] {
   const mine = names.map(cleanName).filter(Boolean).slice(0, MAX_PLAYERS);
   return guests.filter((e) => e.device !== device).concat(mine.map((name) => ({ name, device })));
@@ -155,7 +159,7 @@ export function dropGuest(guests: readonly LobbyEntry[], device: string): LobbyE
 }
 
 /**
- * Arrivés en cours de partie qui peuvent s'asseoir maintenant : téléphone joignable, prénom
+ * Arrivés en cours de partie qui peuvent s'asseoir maintenant : appareil joignable, prénom
  * pas déjà à la table, dans la limite des places.
  */
 export function lateJoiners(game: Game, guests: readonly LobbyEntry[], online: (device: string) => boolean): LobbyEntry[] {
@@ -181,6 +185,11 @@ export function mergeGuests(lobby: readonly LobbyEntry[], guests: readonly Lobby
     out = joinLobby(out, device, names).lobby;
   }
   return out;
+}
+
+/** Appareils déjà dans la salle : ils peuvent revenir même quand elle est verrouillée. */
+export function knownDevices(room: { lobby: readonly LobbyEntry[]; seats: Seats | null; guests: readonly LobbyEntry[] }): Set<string> {
+  return new Set([...room.lobby.map((e) => e.device), ...Object.values(room.seats ?? {}), ...room.guests.map((e) => e.device)]);
 }
 
 export function controlled(seats: Seats, device: string): string[] {

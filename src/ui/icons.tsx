@@ -66,3 +66,15 @@ export const IconSliders = () => (
     <circle cx="18" cy="18" r="2" />
   </Svg>
 );
+export const IconLock = () => (
+  <Svg width={2.2}>
+    <rect x="5" y="11" width="14" height="10" rx="2" />
+    <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+  </Svg>
+);
+export const IconUnlock = () => (
+  <Svg width={2.2}>
+    <rect x="5" y="11" width="14" height="10" rx="2" />
+    <path d="M8 11V7a4 4 0 0 1 7.8-1.3" />
+  </Svg>
+);

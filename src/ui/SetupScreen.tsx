@@ -102,11 +102,11 @@ export function SetupScreen({
   onMode: (m: SetupMode) => void;
   onNames: (names: string[]) => void;
   onStart: (names: string[]) => void;
-  /** À plusieurs téléphones (choix « Chacun sur le sien »). */
+  /** Partie en ligne (choix « Chacun sur le sien »). */
   multi: boolean;
   onMulti: (m: boolean) => void;
   onSettings: (s: Settings) => void;
-  /** Ouvrir une salle à plusieurs téléphones (absent si aucun serveur n'est configuré). */
+  /** Ouvrir une salle en ligne (absent si aucun serveur n'est configuré). */
   onHost?: () => void;
   onJoin?: () => void;
 }) {
@@ -128,7 +128,7 @@ export function SetupScreen({
   else if (hosting)
     hint = names.length
       ? 'Les autres joueurs rejoindront avec le code de la salle.'
-      : 'Ajoutez votre prénom (et ceux des joueurs qui partagent ce téléphone).';
+      : 'Ajoutez votre prénom (et ceux des joueurs qui jouent à côté de vous, sur le même écran).';
   else if (missing > 0)
     hint = 'Encore ' + missing + ' joueur' + (missing > 1 ? 's' : '') + ' minimum pour lancer. Chacun démarre avec ' + s.startChips + ' jetons.';
   else
@@ -175,19 +175,19 @@ export function SetupScreen({
       {virtual && onHost && (
         <Choice
           name="telephones"
-          legend="Sur quels téléphones ?"
+          legend="Où joue chacun ?"
           value={multi ? 'plusieurs' : 'seul'}
           onChange={(v) => onMulti(v === 'plusieurs')}
           options={[
-            { value: 'seul', title: 'Un seul téléphone', text: 'On se passe le téléphone autour de la table.' },
-            { value: 'plusieurs', title: 'Chacun sur le sien', text: 'Ce téléphone ouvre une salle ; les autres la rejoignent avec un code.' },
+            { value: 'seul', title: 'Tous sur le même écran', text: 'On se passe l’appareil autour de la table.' },
+            { value: 'plusieurs', title: 'Chacun sur le sien', text: 'Vous ouvrez une salle ; les autres joueurs la rejoignent depuis leur téléphone ou leur navigateur.' },
           ]}
         />
       )}
       <DurationFields settings={s} mode={mode} players={names.length} onSettings={onSettings} />
       <p class="muted">
         {hosting
-          ? 'Ajoutez les joueurs de ce téléphone. Vous pourrez changer l’ordre de la table dans la salle.'
+          ? 'Ajoutez les joueurs à côté de vous. Vous pourrez changer l’ordre de la table dans la salle.'
           : mode === 'banque'
           ? 'Ajoutez les joueurs dans l’ordre autour de la table (' + min + ' à ' + MAX_PLAYERS + ').'
           : "Ajoutez les joueurs dans l'ordre autour de la table (" + min + ' à ' + MAX_PLAYERS + '). Le premier de la liste est le premier croupier, puis la main passe au joueur suivant, à sa gauche.'}

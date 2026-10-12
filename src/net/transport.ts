@@ -1,13 +1,13 @@
-// Canal de messages d'une salle. Deux implémentations au choix :
-// - Supabase Realtime (diffusion entre téléphones, sans table ni compte) quand le projet est configuré ;
+// Canal de messages (une salle, ou l'annuaire des salles ouvertes). Deux implémentations au choix :
+// - Supabase Realtime (diffusion entre appareils, sans table ni compte) quand le projet est configuré ;
 // - BroadcastChannel du navigateur (entre onglets d'un même navigateur) pour les essais et l'e2e.
 
 import type { NetMessage } from './protocol';
 
 export type TransportStatus = 'connexion' | 'connecte' | 'erreur';
 
-export interface Transport {
-  send: (m: NetMessage) => void;
+export interface Transport<M = NetMessage> {
+  send: (m: M) => void;
   close: () => void;
 }
 
@@ -18,7 +18,7 @@ const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
 
 /**
  * Transport disponible : `?reseau=local` force les onglets du navigateur (tests) ;
- * sinon Supabase s'il est configuré ; sinon aucun (le jeu à plusieurs téléphones est masqué).
+ * sinon Supabase s'il est configuré ; sinon aucun (le jeu en ligne est masqué).
  */
 export function transportKind(): TransportKind | null {
   try {
@@ -31,11 +31,12 @@ export function transportKind(): TransportKind | null {
 
 const topic = (code: string) => 'bj-' + code;
 
-export function openTransport(kind: TransportKind, code: string, onMessage: (m: unknown) => void, onStatus: (s: TransportStatus) => void): Transport {
-  return kind === 'local' ? openLocal(code, onMessage, onStatus) : openSupabase(code, onMessage, onStatus);
+/** `code` : celui d'une salle (4 lettres), ou un nom de canal commun comme celui de l'annuaire. */
+export function openTransport<M = NetMessage>(kind: TransportKind, code: string, onMessage: (m: unknown) => void, onStatus: (s: TransportStatus) => void): Transport<M> {
+  return kind === 'local' ? openLocal<M>(code, onMessage, onStatus) : openSupabase<M>(code, onMessage, onStatus);
 }
 
-function openLocal(code: string, onMessage: (m: unknown) => void, onStatus: (s: TransportStatus) => void): Transport {
+function openLocal<M>(code: string, onMessage: (m: unknown) => void, onStatus: (s: TransportStatus) => void): Transport<M> {
   const ch = new BroadcastChannel(topic(code));
   ch.onmessage = (e: MessageEvent<unknown>) => onMessage(e.data);
   // Annoncé après le retour de la fonction, comme pour Supabase : l'appelant a alors de quoi envoyer.
@@ -49,12 +50,12 @@ function openLocal(code: string, onMessage: (m: unknown) => void, onStatus: (s: 
   };
 }
 
-function openSupabase(code: string, onMessage: (m: unknown) => void, onStatus: (s: TransportStatus) => void): Transport {
+function openSupabase<M>(code: string, onMessage: (m: unknown) => void, onStatus: (s: TransportStatus) => void): Transport<M> {
   onStatus('connexion');
   let closed = false;
   let ready = false;
-  const queue: NetMessage[] = [];
-  let sendNow: ((m: NetMessage) => void) | null = null;
+  const queue: M[] = [];
+  let sendNow: ((m: M) => void) | null = null;
   let stop: (() => void) | null = null;
 
   // Chargé à la demande : le jeu sur un seul appareil n'en a pas besoin (et reste léger hors ligne).

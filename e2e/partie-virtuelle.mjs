@@ -266,7 +266,7 @@ try {
     await B.waitForSelector('.hint-err', { timeout: 8000 });
     check((await B.locator('.hint-err').innerText()).includes('alice'), 'doublon de nom non signalé');
     await B.getByRole('button', { name: 'Quitter la salle' }).click();
-    await B.getByRole('button', { name: 'Oui' }).click();
+    await B.getByRole('button', { name: 'Oui', exact: true }).click();
     await B.waitForFunction((k) => !JSON.parse(localStorage.getItem(k) ?? 'null')?.room, KEY + '-b');
 
     await B.goto(base + '&appareil=b&salle=' + code);
@@ -274,7 +274,7 @@ try {
     await B.getByLabel('Votre prénom').press('Enter');
     await B.getByRole('button', { name: 'Rejoindre', exact: true }).click();
     await A.waitForFunction(() => document.querySelectorAll('.setup-name').length === 2, null, { timeout: 8000 });
-    check(flat(await A.locator('.setup-row').nth(1).innerText()).includes('Bob autre téléphone'), 'Bob absent de la salle');
+    check(flat(await A.locator('.setup-row').nth(1).innerText()).includes('Bob autre joueur'), 'Bob absent de la salle');
     await B.screenshot({ path: `${OUT}/v09-salle-invite.png`, fullPage: true });
 
     await A.getByRole('button', { name: 'Lancer la partie' }).click();
@@ -289,7 +289,7 @@ try {
     await A.waitForSelector('.pc', { timeout: 8000 });
     const turn = await A.locator('.dock').innerText().catch(() => '');
     if (turn.includes('À Bob')) {
-      check(turn.includes('réfléchit sur son téléphone'), 'l’hôte ne doit pas jouer pour Bob');
+      check(turn.includes('Bob réfléchit'), 'l’hôte ne doit pas jouer pour Bob');
       check((await A.getByRole('button', { name: 'Rester', exact: true }).count()) === 0, 'boutons de Bob chez l’hôte');
       await B.screenshot({ path: `${OUT}/v10-invite-joue.png` });
       await B.getByRole('button', { name: 'Rester', exact: true }).click();
@@ -307,10 +307,64 @@ try {
 
     // L'hôte ferme la salle : l'invité est prévenu, la partie continue chez l'hôte.
     await A.getByRole('button', { name: 'Fermer la salle' }).click();
-    await A.getByRole('button', { name: 'Oui' }).click();
+    await A.getByRole('button', { name: 'Oui', exact: true }).click();
     await B.waitForSelector('text=Salle fermée', { timeout: 8000 });
     check((await A.locator('.dealer-zone').count()) === 1, 'la partie de l’hôte a disparu');
     await mctx.close();
+  });
+
+  console.log('Parties ouvertes');
+  await step('la salle apparaît dans la liste, se verrouille, se rouvre', async () => {
+    const octx = await browser.newContext({ viewport: { width: 375, height: 812 }, locale: 'fr-FR', serviceWorkers: 'block', reducedMotion: 'reduce' });
+    const [A, C] = [await octx.newPage(), await octx.newPage()];
+    watch(A, 'hôte ');
+    watch(C, 'Chloé ');
+    const base = URL + (URL.includes('?') ? '&' : '?') + 'reseau=local';
+    await C.goto(base + '&appareil=oc');
+    await C.evaluate(() => localStorage.clear());
+    await C.reload();
+    check((await C.locator('.open-tables').innerText()).includes('Aucune partie ouverte'), 'liste vide attendue');
+
+    await A.goto(base + '&appareil=oa');
+    await A.evaluate(() => localStorage.clear());
+    await A.reload();
+    await A.getByText("Tout dans l'app").click();
+    await A.getByLabel('Nom du joueur').fill('Alice');
+    await A.getByLabel('Nom du joueur').press('Enter');
+    await A.getByText('Chacun sur le sien').click();
+    await A.getByRole('button', { name: 'Ouvrir la salle' }).click();
+    const code = (await A.locator('.room-code').getAttribute('aria-label')).replace(/[^A-Z]/g, '').slice(-4);
+    check(!(await A.getByLabel('Verrouiller la partie').isChecked()), 'la salle doit être ouverte par défaut');
+
+    await C.locator('.open-table', { hasText: 'Alice' }).waitFor({ timeout: 8000 });
+    check(flat(await C.locator('.open-table').innerText()).includes('1 joueur · en attente'), 'détail de la salle');
+    await C.screenshot({ path: `${OUT}/v15-parties-ouvertes.png`, fullPage: true });
+
+    // Verrouillée : elle sort de la liste, et le code ne suffit plus.
+    await A.getByLabel('Verrouiller la partie').check();
+    await C.waitForFunction(() => document.querySelectorAll('.open-table').length === 0, null, { timeout: 8000 });
+    await C.goto(base + '&appareil=oc&salle=' + code);
+    await C.getByLabel('Votre prénom').fill('Chloé');
+    await C.getByLabel('Votre prénom').press('Enter');
+    await C.getByRole('button', { name: 'Rejoindre', exact: true }).click();
+    await C.waitForSelector('text=Salle verrouillée', { timeout: 8000 });
+    check((await A.locator('.setup-name').count()) === 1, 'Chloé est entrée malgré le verrou');
+    await C.screenshot({ path: `${OUT}/v16-salle-verrouillee.png`, fullPage: true });
+
+    // Rouverte : Chloé entre toute seule.
+    await A.getByLabel('Verrouiller la partie').uncheck();
+    await A.waitForFunction(() => document.querySelectorAll('.setup-name').length === 2, null, { timeout: 10000 });
+    await C.waitForSelector('text=Vous êtes à la table', { timeout: 8000 });
+
+    // En partie : le cadenas du bandeau verrouille ; Chloé, déjà assise, peut revenir.
+    await A.getByRole('button', { name: 'Lancer la partie' }).click();
+    await C.waitForSelector('.dealer-zone', { timeout: 8000 });
+    await A.getByRole('button', { name: /Partie ouverte : toucher pour la verrouiller/ }).click();
+    check((await A.locator('.lock-btn').getAttribute('aria-pressed')) === 'true', 'cadenas non enclenché');
+    await C.reload();
+    await C.waitForSelector('.dealer-zone', { timeout: 8000 });
+    check((await C.locator('text=Salle verrouillée').count()) === 0, 'Chloé refusée alors qu’elle était déjà à la table');
+    await octx.close();
   });
 
   console.log('Trois téléphones');
@@ -391,20 +445,20 @@ try {
     const give = A.getByRole('button', { name: 'Donner la place de Bob…' });
     await give.waitFor({ timeout: 20000 });
     await give.click();
-    await A.getByRole('button', { name: /^Bob téléphone arrivé en cours de partie/ }).waitFor();
+    await A.getByRole('button', { name: /^Bob joueur arrivé en cours de partie/ }).waitFor();
     await A.waitForTimeout(300);
     await A.screenshot({ path: `${OUT}/v13-donner-la-place.png` });
-    await A.getByRole('button', { name: /^Bob téléphone arrivé en cours de partie/ }).click();
+    await A.getByRole('button', { name: /^Bob joueur arrivé en cours de partie/ }).click();
     await B2.waitForSelector('.seat-card.is-mine', { timeout: 8000 });
     check((await B2.locator('.seat-card.is-mine .seat-name').innerText()) === 'Bob', 'Bob n’a pas retrouvé sa place');
 
     // Fin de partie, puis retour à la salle d'attente : tout le monde y revient.
     await A.locator('.nav-btn', { hasText: 'Classement' }).click();
     await A.getByRole('button', { name: 'Terminer la partie maintenant' }).click();
-    await A.getByRole('button', { name: 'Oui' }).click();
+    await A.getByRole('button', { name: 'Oui', exact: true }).click();
     await A.locator('.nav-btn', { hasText: 'Table' }).click();
     await A.getByRole('button', { name: 'Nouvelle partie' }).click();
-    await A.getByRole('button', { name: 'Oui' }).click();
+    await A.getByRole('button', { name: 'Oui', exact: true }).click();
     await A.waitForSelector('.room-code');
     await C.waitForSelector('text=Vous êtes à la table', { timeout: 8000 });
     await B2.waitForSelector('text=Vous êtes à la table', { timeout: 8000 });

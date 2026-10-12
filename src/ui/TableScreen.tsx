@@ -160,9 +160,9 @@ export interface TableProps {
   onPlay: (pid: string, action: HandAction) => void;
   onNext: () => void;
   onClaim: (cid: string) => void;
-  /** Partie à plusieurs : le téléphone de ce joueur ne répond plus. */
+  /** Partie en ligne : ce joueur ne répond plus. */
   offline?: (pid: string) => boolean;
-  /** Hôte : donner la place d'un joueur déconnecté à un autre téléphone (ou la reprendre). */
+  /** Hôte : donner la place d'un joueur déconnecté à un autre appareil (ou la reprendre). */
   onTakeOver?: (pid: string) => void;
 }
 
@@ -201,7 +201,7 @@ function Table({ game: g, settings: s, controls, onBet, onReady, onPlay, onNext,
   };
 
   const myPending = seated.filter((p) => mine(p.id) && !v.ready.includes(p.id));
-  // Aucun joueur de ce téléphone ne mise (spectateur, croupier de la donne) : rien à valider ni à changer.
+  // Aucun joueur de cet appareil ne mise (spectateur, croupier de la donne) : rien à valider ni à changer.
   const betting = seated.some((p) => mine(p.id));
   const waitingFor = seated.filter((p) => !v.ready.includes(p.id));
   const challenges = tableChallenges(g, s);
@@ -493,7 +493,7 @@ function ActionDock({ g, pid, mine, onPlay }: { g: Game; pid: string; mine: bool
         </div>
       ) : (
         <p class="small" style="margin:0">
-          {p.name} réfléchit sur son téléphone…
+          {p.name} réfléchit…
         </p>
       )}
     </section>

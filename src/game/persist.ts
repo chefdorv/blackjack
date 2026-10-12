@@ -13,7 +13,7 @@ export type Tab = (typeof TABS)[number];
 export type SetupMode = 'reel' | 'tournant' | 'banque';
 export const SETUP_MODES: readonly SetupMode[] = ['reel', 'tournant', 'banque'];
 
-/** Partie à plusieurs téléphones en cours (voir src/net) ; relue sans dépendre du réseau. */
+/** Partie en ligne en cours (voir src/net) ; relue sans dépendre du réseau. */
 export type PersistedRoom =
   | {
       role: 'host';
@@ -21,8 +21,10 @@ export type PersistedRoom =
       mode: 'tournant' | 'banque';
       lobby: Array<{ name: string; device: string }>;
       seats: Record<string, string> | null;
-      /** Téléphones arrivés une fois la partie lancée : ils entrent à la manche suivante. */
+      /** Appareils arrivés une fois la partie lancée : ils entrent à la manche suivante. */
       guests: Array<{ name: string; device: string }>;
+      /** Verrouillée : absente de la liste des parties ouvertes, et fermée aux nouveaux venus. */
+      locked: boolean;
     }
   | { role: 'guest'; code: string; names: string[] };
 
@@ -243,6 +245,7 @@ function normRoom(v: unknown): PersistedRoom | null {
     lobby: lobby.slice(0, MAX_PLAYERS),
     seats,
     guests: seats ? entries(v.guests).slice(0, MAX_PLAYERS * 2) : [],
+    locked: v.locked === true,
   };
 }
 

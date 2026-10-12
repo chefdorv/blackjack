@@ -17,6 +17,7 @@ import {
   controlled,
   dropGuest,
   joinLobby,
+  knownDevices,
   lateJoiners,
   leaveLobby,
   mergeGuests,
@@ -25,6 +26,7 @@ import {
   noteGuest,
   seatsFor,
 } from './net/protocol';
+import { useOpenTables, type OpenTable } from './net/directory';
 import { transportKind } from './net/transport';
 import { useRoom } from './net/useRoom';
 import { deviceId, saveState, loadState } from './storage';
@@ -34,7 +36,7 @@ import { CountScreen, EndScreen, SettleScreen, VirtualSettleScreen } from './ui/
 import { CorrectSheet, GameScreen } from './ui/GameScreen';
 import { IconBook, IconCards, IconSliders, IconTable, IconTrophy, IconUndo } from './ui/icons';
 import { RankScreen, RulesScreen } from './ui/InfoScreens';
-import { GuestLobbyScreen, GuestsBanner, HostLobbyScreen, JoinScreen, ReassignDialog, RoomBar, SpectatorNote } from './ui/RoomScreens';
+import { GuestLobbyScreen, GuestsBanner, HostLobbyScreen, JoinScreen, OpenTablesPanel, ReassignDialog, RoomBar, SpectatorNote } from './ui/RoomScreens';
 import { SettingsScreen } from './ui/SettingsScreen';
 import { SetupScreen } from './ui/SetupScreen';
 import { TableScreen } from './ui/TableScreen';
@@ -206,8 +208,8 @@ export function App() {
   };
 
   /**
-   * Applique une demande (de ce téléphone : allowed = null, ou d'un invité : ses joueurs).
-   * Au début d'une manche, les téléphones arrivés en cours de partie s'assoient.
+   * Applique une demande (de cet appareil : allowed = null, ou d'un invité : ses joueurs).
+   * Au début d'une manche, les joueurs arrivés en cours de partie s'assoient.
    */
   const hostApply = (intent: Intent, allowed: string[] | null) => {
     const d = ref.current;
@@ -271,15 +273,20 @@ export function App() {
     device,
     hostGame: data.room?.role === 'host' ? data.game : null,
     hostSettings: data.settings,
-    onHello: (from, names) =>
+    onHello: (from, names) => {
+      const cur = ref.current.room;
+      // Salle verrouillée : seuls ceux qui y sont déjà peuvent revenir.
+      if (cur?.role === 'host' && cur.locked && !knownDevices(cur).has(from)) return false;
       setRoom((r) => {
         if (r.role !== 'host' || kicked.current.has(from)) return r;
         if (!r.seats) return { ...r, lobby: joinLobby(r.lobby, from, names).lobby };
-        // Partie lancée : un joueur déjà assis revient, ou un nouveau téléphone attend la manche suivante.
+        // Partie lancée : un joueur déjà assis revient, ou un nouveau joueur attend la manche suivante.
         if (controlled(r.seats, from).length > 0) return r;
         const guests = noteGuest(r.guests, from, names);
         return JSON.stringify(guests) === JSON.stringify(r.guests) ? r : { ...r, guests };
-      }),
+      });
+      return true;
+    },
     onLeave: (from) =>
       setRoom((r) => {
         if (r.role !== 'host') return r;
@@ -321,7 +328,7 @@ export function App() {
     if (d.setupMode === 'reel') return;
     const lobby = joinLobby([], device, d.setupNames).lobby;
     kicked.current.clear();
-    setData({ ...d, room: { role: 'host', code: newRoomCode(rng), mode: d.setupMode, lobby, seats: null, guests: [] }, tab: 'table' });
+    setData({ ...d, room: { role: 'host', code: newRoomCode(rng), mode: d.setupMode, lobby, seats: null, guests: [], locked: false }, tab: 'table' });
     scrollTop();
   };
 
@@ -341,10 +348,17 @@ export function App() {
     flash("C'est parti ! " + plural(r.game.current.length, 'défi') + ' sur la table');
   };
 
+  const toggleLock = () => {
+    const r = ref.current.room;
+    if (r?.role !== 'host') return;
+    setRoom((x) => (x.role === 'host' ? { ...x, locked: !x.locked } : x));
+    flash(r.locked ? 'Partie ouverte : elle apparaît dans la liste' : 'Partie verrouillée : plus personne de nouveau');
+  };
+
   const closeRoom = () =>
     ask(
       ref.current.room?.role === 'host' && ref.current.room.seats
-        ? 'Fermer la salle ? La partie continue sur ce seul téléphone.'
+        ? 'Fermer la salle ? La partie continue ici, sans les autres joueurs.'
         : 'Fermer la salle ?',
       () => {
         net.close(true);
@@ -358,7 +372,7 @@ export function App() {
       setData({ ...ref.current, room: null, tab: 'table' });
     });
 
-  /** Donne la place d'un joueur à un autre téléphone (le sien ne répond plus), ou à ce téléphone. */
+  /** Donne la place d'un joueur à un autre appareil (le sien ne répond plus), ou à celui-ci. */
   const giveSeat = (pid: string, to: string) => {
     const name = ref.current.game?.players.find((p) => p.id === pid)?.name;
     setReassign(null);
@@ -367,7 +381,7 @@ export function App() {
       const lobby = r.lobby.map((e) => (name && e.name.toLocaleLowerCase('fr-FR') === name.toLocaleLowerCase('fr-FR') ? { ...e, device: to } : e));
       return { ...r, seats: { ...r.seats, [pid]: to }, lobby, guests: dropGuest(r.guests, to) };
     });
-    if (name) flash(to === device ? 'Vous jouez pour ' + name : name + ' rejoue sur son nouveau téléphone');
+    if (name) flash(to === device ? 'Vous jouez pour ' + name : name + ' a repris sa place');
   };
 
   const claim = (cid: string, pid: string) => {
@@ -462,7 +476,7 @@ export function App() {
   const toSetup = () => {
     const d = ref.current;
     if (d.room?.role === 'host') {
-      // À plusieurs téléphones : retour à la salle d'attente, les invités restent connectés.
+      // Partie en ligne : retour à la salle d'attente, les invités restent connectés.
       setData({ ...d, game: null, history: [], tab: 'table', room: { ...d.room, seats: null, lobby: mergeGuests(d.room.lobby, d.room.guests), guests: [] } });
       setSheet(null);
       scrollTop();
@@ -502,7 +516,7 @@ export function App() {
   const guest = room?.role === 'guest';
   const hosting = room?.role === 'host';
   // Un invité affiche la table reçue de l'hôte, avec les réglages de l'hôte.
-  const g = guest ? (net.closedByHost ? null : (net.view?.game ?? null)) : data.game;
+  const g = guest ? (net.closedByHost || net.lockedOut ? null : (net.view?.game ?? null)) : data.game;
   const settingsRaw = guest ? (net.view?.settings ?? data.settings) : data.settings;
   // En banque automatique, pas de défis croupier : tous les écrans voient 0 emplacement croupier.
   const s = virtualSettings(g, settingsRaw);
@@ -535,12 +549,28 @@ export function App() {
       const mine = guestList.filter((e) => e.device === device);
       const clash = mine.find((e) => g.players.some((p) => sameName(p.name, e.name)));
       const text = clash
-        ? '« ' + clash.name + ' » est déjà à la table. Si c’est vous sur un nouveau téléphone, demandez à l’hôte de toucher « Donner la place de ' + clash.name + ' ».'
+        ? '« ' + clash.name + ' » est déjà à la table. Si c’est vous et que vous avez changé d’appareil, demandez à l’hôte de toucher « Donner la place de ' + clash.name + ' ».'
         : 'La partie a déjà commencé : vous regardez. ' +
           (mine.length === 0 ? '' : g.round >= s.rounds ? 'Vous jouerez à la partie suivante.' : 'Vous entrerez à la manche ' + (g.round + 1) + '.');
       notice = <SpectatorNote text={text} />;
     }
   }
+  // Annuaire : l'hôte d'une salle ouverte s'y annonce ; l'écran de création affiche les salles ouvertes.
+  const openTable: OpenTable | null =
+    hosting && !room.locked
+      ? {
+          code: room.code,
+          host: room.seats && data.game ? data.game.players.filter((p) => room.seats?.[p.id] === device).map((p) => p.name) : room.lobby.filter((e) => e.device === device).map((e) => e.name),
+          players: room.seats && data.game ? data.game.players.length : room.lobby.length,
+          started: room.seats !== null,
+          round: data.game?.round ?? 1,
+          rounds: data.settings.rounds,
+          mode: room.mode,
+        }
+      : null;
+  const listening = tab === 'table' && !room && !g && joining === null;
+  const openTables = useOpenTables({ kind, device, announce: openTable, listen: listening });
+
   const reassignPlayer = hosting && g && reassign ? g.players.find((p) => p.id === reassign) : undefined;
 
   let screen: JSX.Element;
@@ -568,6 +598,7 @@ export function App() {
         status={net.status}
         hostOffline={net.hostOffline}
         closed={net.closedByHost}
+        lockedOut={net.lockedOut}
         onLeave={leaveRoom}
       />
     );
@@ -598,6 +629,8 @@ export function App() {
         onMove={(i, delta) => setRoom((r) => (r.role === 'host' ? { ...r, lobby: moveItem(r.lobby, i, delta) } : r))}
         onStart={startRoomGame}
         onCancel={closeRoom}
+        locked={room.locked}
+        onLock={toggleLock}
         settings={data.settings}
         onSettings={updateSettings}
       />
@@ -605,6 +638,8 @@ export function App() {
   else if (tab === 'table') {
     if (!g)
       screen = (
+        <>
+        {kind && <OpenTablesPanel tables={openTables} onJoin={(code) => setJoining(code)} />}
         <SetupScreen
           names={data.setupNames}
           settings={s}
@@ -618,6 +653,7 @@ export function App() {
           onMulti={setMulti}
           onSettings={updateSettings}
         />
+        </>
       );
     else if (g.finished && g.revealed)
       screen = (
@@ -714,7 +750,7 @@ export function App() {
         <h1 class="h1" id="guest-settings">
           La maison
         </h1>
-        <p class="muted">Pendant une partie à plusieurs téléphones, les règles, les mises et les défis sont ceux du téléphone hôte.</p>
+        <p class="muted">Pendant une partie en ligne, les règles, les mises et les défis sont ceux du joueur qui a ouvert la salle.</p>
         <button type="button" class="btn danger" onClick={leaveRoom}>
           Quitter la salle {room.code}
         </button>
@@ -784,6 +820,8 @@ export function App() {
             offlineNames={g.players.filter((p) => pidOffline(p.id)).map((p) => p.name)}
             label={hosting ? 'Fermer la salle' : 'Quitter'}
             onClose={hosting ? closeRoom : leaveRoom}
+            locked={hosting ? room.locked : undefined}
+            onLock={hosting ? toggleLock : undefined}
           />
         )}
         {notice}

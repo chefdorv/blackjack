@@ -1,13 +1,14 @@
-// Parties à plusieurs téléphones : salle d'attente de l'hôte, saisie du code et attente des invités.
+// Parties en ligne : salles ouvertes, salle d'attente de l'hôte, saisie du code et attente des invités.
 import { useState } from 'preact/hooks';
 import { addName, MAX_PLAYERS, minPlayers, NAME_MAX, nameError } from '../game/names';
 import type { DealerMode } from '../game/types';
+import type { OpenTable } from '../net/directory';
 import type { LobbyEntry } from '../net/protocol';
 import type { TransportStatus } from '../net/transport';
 import type { Settings } from '../game/types';
 import { Dialog } from './common';
 import { DurationFields } from './SetupScreen';
-import { IconClose, IconDown, IconUp } from './icons';
+import { IconClose, IconDown, IconLock, IconUnlock, IconUp } from './icons';
 
 const STATUS: Record<TransportStatus, string> = {
   connexion: 'Connexion au serveur…',
@@ -39,7 +40,7 @@ export function roomLink(code: string): string {
   }
 }
 
-/** Saisie d'un nom ajouté à une liste (joueurs de ce téléphone). */
+/** Saisie d'un nom ajouté à une liste (joueurs de cet appareil). */
 function NameForm({ id, names, others, onAdd, label }: { id: string; names: string[]; others: string[]; onAdd: (n: string) => void; label: string }) {
   const [draft, setDraft] = useState('');
   const all = names.concat(others);
@@ -93,7 +94,11 @@ export function HostLobbyScreen({
   onCancel,
   settings,
   onSettings,
+  locked,
+  onLock,
 }: {
+  locked: boolean;
+  onLock: () => void;
   settings: Settings;
   onSettings: (s: Settings) => void;
   code: string;
@@ -124,9 +129,9 @@ export function HostLobbyScreen({
   };
   return (
     <section class="panel" aria-labelledby="lobby-title">
-      <div class="k">Partie à plusieurs téléphones · {mode === 'banque' ? 'banque automatique' : 'croupier tournant'}</div>
+      <div class="k">Partie en ligne · {mode === 'banque' ? 'banque automatique' : 'croupier tournant'}</div>
       <h1 class="h1" id="lobby-title">
-        La salle est ouverte
+        {locked ? 'La salle est verrouillée' : 'La salle est ouverte'}
       </h1>
       <StatusLine status={status} />
       <div class="room-code" aria-label={'Code de la salle : ' + code.split('').join(' ')}>
@@ -137,11 +142,12 @@ export function HostLobbyScreen({
         ))}
       </div>
       <p class="muted">
-        Sur chaque autre téléphone : ouvrir blackjack.dooka.fr, toucher « Rejoindre une partie » et taper ce code. Ou envoyer directement le lien.
+        Les autres joueurs ouvrent blackjack.dooka.fr, sur téléphone ou sur ordinateur, puis touchent « Rejoindre une partie » et tapent ce code. Ou envoyez-leur directement le lien.
       </p>
       <button type="button" class="btn" onClick={share}>
         {copied ? 'Lien copié' : 'Partager le lien'}
       </button>
+      <LockSwitch locked={locked} onLock={onLock} />
       <h2 class="h3">Autour de la table ({lobby.length})</h2>
       <p class="small">
         {mode === 'banque' ? "L'ordre de la liste est l'ordre de jeu." : "L'ordre de la liste est l'ordre de la table : le premier est le premier croupier."}
@@ -155,7 +161,7 @@ export function HostLobbyScreen({
             <span class="setup-name">
               {e.name}
               <span class={'small lobby-dev' + (e.device !== device && offline(e.device) ? ' off' : '')}>
-                {e.device === device ? 'ce téléphone' : offline(e.device) ? 'déconnecté' : 'autre téléphone'}
+                {e.device === device ? 'vous' : offline(e.device) ? 'déconnecté' : 'autre joueur'}
               </span>
             </span>
             <button type="button" class="icon-btn" onClick={() => onMove(i, -1)} disabled={i === 0} aria-label={'Monter ' + e.name}>
@@ -171,7 +177,7 @@ export function HostLobbyScreen({
         ))}
       </ol>
       {lobby.length === 0 && <div class="empty">Personne pour l'instant.</div>}
-      <NameForm id="lobby-name" names={lobby.map((e) => e.name)} others={[]} onAdd={onAdd} label="Joueur sur ce téléphone" />
+      <NameForm id="lobby-name" names={lobby.map((e) => e.name)} others={[]} onAdd={onAdd} label="Prénom" />
       <DurationFields settings={settings} mode={mode} players={lobby.length} onSettings={onSettings} />
       <button type="button" class="btn big gold" onClick={onStart} disabled={lobby.length < min || lobby.length > MAX_PLAYERS}>
         Lancer la partie
@@ -202,12 +208,12 @@ export function JoinScreen({
   const valid = cleanCode(code);
   return (
     <section class="panel" aria-labelledby="join-title">
-      <div class="k">Partie à plusieurs téléphones</div>
+      <div class="k">Partie en ligne</div>
       <h1 class="h1" id="join-title">
         Rejoindre une table
       </h1>
       <label class="set-label" for="join-code">
-        Code de la salle (4 lettres, affiché sur le téléphone hôte)
+        Code de la salle (4 lettres, affiché chez le joueur qui l'a ouverte)
       </label>
       <input
         id="join-code"
@@ -221,7 +227,7 @@ export function JoinScreen({
         onInput={(e) => setCode(e.currentTarget.value.toUpperCase())}
         placeholder="ABCD"
       />
-      <h2 class="h3">Qui joue sur ce téléphone ?</h2>
+      <h2 class="h3">Qui joue ?</h2>
       <ul class="setup-list" style="margin:0;padding:0;list-style:none">
         {names.map((n, i) => (
           <li class="setup-row" key={n}>
@@ -251,6 +257,7 @@ export function GuestLobbyScreen({
   status,
   hostOffline,
   closed,
+  lockedOut,
   onLeave,
 }: {
   code: string;
@@ -260,6 +267,7 @@ export function GuestLobbyScreen({
   status: TransportStatus | null;
   hostOffline: boolean;
   closed: boolean;
+  lockedOut: boolean;
   onLeave: () => void;
 }) {
   const seated = lobby.filter((e) => e.device === device).map((e) => e.name.toLocaleLowerCase('fr-FR'));
@@ -268,15 +276,19 @@ export function GuestLobbyScreen({
     <section class="panel" aria-labelledby="wait-title">
       <div class="k">Salle {code}</div>
       <h1 class="h1" id="wait-title">
-        {closed ? 'Salle fermée' : lobby.length ? 'Vous êtes à la table' : 'Recherche de la table…'}
+        {closed ? 'Salle fermée' : lockedOut ? 'Salle verrouillée' : lobby.length ? 'Vous êtes à la table' : 'Recherche de la table…'}
       </h1>
       <StatusLine status={status} />
       {closed ? (
         <p class="muted">L'hôte a fermé la salle.</p>
+      ) : lockedOut ? (
+        <p class="muted" role="alert">
+          L'hôte a verrouillé cette partie : elle n'accepte plus de nouveaux joueurs. Vous entrerez automatiquement s'il la rouvre.
+        </p>
       ) : lobby.length === 0 ? (
-        <p class="muted">Le téléphone hôte doit avoir l'application ouverte sur la salle {code}. Vérifiez le code si rien ne se passe.</p>
+        <p class="muted">Le joueur qui a ouvert la salle {code} doit avoir l'application ouverte. Vérifiez le code si rien ne se passe.</p>
       ) : (
-        <p class="muted">{hostOffline ? "Le téléphone hôte ne répond plus : la partie reprendra dès qu'il revient." : "En attente du lancement de la partie par l'hôte."}</p>
+        <p class="muted">{hostOffline ? "L'hôte ne répond plus : la partie reprendra dès qu'il revient." : "En attente du lancement de la partie par l'hôte."}</p>
       )}
       {refused.length > 0 && (
         <p class="small hint-err" role="alert">
@@ -292,7 +304,7 @@ export function GuestLobbyScreen({
               </span>
               <span class="setup-name">
                 {e.name}
-                {e.device === device && <span class="small lobby-dev">ce téléphone</span>}
+                {e.device === device && <span class="small lobby-dev">vous</span>}
               </span>
             </li>
           ))}
@@ -313,6 +325,8 @@ export function RoomBar({
   offlineNames,
   label,
   onClose,
+  locked,
+  onLock,
 }: {
   code: string;
   status: TransportStatus | null;
@@ -320,16 +334,30 @@ export function RoomBar({
   offlineNames: string[];
   label: string;
   onClose: () => void;
+  /** Hôte seulement : verrouiller ou rouvrir la salle. */
+  locked?: boolean;
+  onLock?: () => void;
 }) {
   const st = status ?? 'connexion';
   let text = 'Salle ' + code;
   if (st !== 'connecte') text += ' · ' + STATUS[st];
-  else if (hostOffline) text += " · le téléphone hôte ne répond plus";
+  else if (hostOffline) text += " · l'hôte ne répond plus";
   else if (offlineNames.length) text += ' · déconnecté : ' + offlineNames.join(', ');
   return (
     <div class={'room-bar ' + (st !== 'connecte' || hostOffline || offlineNames.length ? 'warn' : '')} role="status">
       <span class="net-dot" aria-hidden="true" />
       <span class="grow">{text}</span>
+      {onLock && (
+        <button
+          type="button"
+          class={'btn sm ghost lock-btn' + (locked ? ' on' : '')}
+          onClick={onLock}
+          aria-pressed={locked}
+          aria-label={locked ? 'Partie verrouillée : toucher pour la rouvrir' : 'Partie ouverte : toucher pour la verrouiller'}
+        >
+          {locked ? <IconLock /> : <IconUnlock />}
+        </button>
+      )}
       <button type="button" class="btn sm ghost" onClick={onClose}>
         {label}
       </button>
@@ -337,7 +365,7 @@ export function RoomBar({
   );
 }
 
-/** Hôte : à quel téléphone donner la place d'un joueur dont le téléphone ne répond plus. */
+/** Hôte : à quel appareil donner la place d'un joueur qui ne répond plus. */
 export function ReassignDialog({
   name,
   candidates,
@@ -354,7 +382,7 @@ export function ReassignDialog({
   const devices = [...new Set(candidates.map((c) => c.device))];
   return (
     <Dialog label={'Donner la place de ' + name} onClose={onClose} variant="modal">
-      <div class="k">Le téléphone de {name} ne répond plus</div>
+      <div class="k">{name} ne répond plus</div>
       <h2 class="h3">Qui reprend sa place ?</h2>
       <p class="small">Ses jetons, ses défis et sa main en cours restent les mêmes.</p>
       <div class="pick-list">
@@ -364,15 +392,15 @@ export function ReassignDialog({
               .filter((c) => c.device === d)
               .map((c) => c.name)
               .join(', ')}{' '}
-            <small>téléphone arrivé en cours de partie</small>
+            <small>joueur arrivé en cours de partie</small>
           </button>
         ))}
         <button type="button" class="pick stack" onClick={onSelf}>
-          Ce téléphone <small>vous jouez à sa place</small>
+          Moi <small>vous jouez à sa place</small>
         </button>
       </div>
       {devices.length === 0 && (
-        <p class="small">Pour qu'il reprenne la main sur un autre téléphone : ouvrez le lien de la salle sur ce téléphone, puis revenez ici.</p>
+        <p class="small">Pour qu'il reprenne la main depuis un autre appareil : qu'il ouvre le lien de la salle, puis revenez ici.</p>
       )}
       <button type="button" class="btn" onClick={onClose}>
         Annuler
@@ -390,7 +418,7 @@ export function SpectatorNote({ text }: { text: string }) {
   );
 }
 
-/** Hôte : téléphones arrivés une fois la partie lancée. */
+/** Hôte : joueurs arrivés une fois la partie lancée. */
 export function GuestsBanner({ items }: { items: Array<{ name: string; status: string }> }) {
   return (
     <div class="spectator" role="status">
@@ -403,5 +431,61 @@ export function GuestsBanner({ items }: { items: Array<{ name: string; status: s
         ))}
       </ul>
     </div>
+  );
+}
+
+/** Hôte : salle ouverte à tous (visible dans la liste) ou verrouillée. */
+function LockSwitch({ locked, onLock }: { locked: boolean; onLock: () => void }) {
+  return (
+    <div class="set-row">
+      <div class="grow">
+        <label class="set-label" for="room-lock">
+          Verrouiller la partie
+        </label>
+        <div class="small">
+          {locked
+            ? 'Plus personne de nouveau ne peut entrer, même avec le code. Les joueurs déjà là gardent leur place.'
+            : 'Ouverte : elle apparaît dans la liste des parties, et n’importe qui peut la rejoindre.'}
+        </div>
+      </div>
+      <input id="room-lock" class="switch" type="checkbox" role="switch" checked={locked} onChange={onLock} />
+    </div>
+  );
+}
+
+/** Écran de création : les parties en ligne restées ouvertes, à rejoindre d'un geste. */
+export function OpenTablesPanel({ tables, onJoin }: { tables: OpenTable[]; onJoin: (code: string) => void }) {
+  return (
+    <section class="panel open-tables" aria-labelledby="open-title">
+      <h2 class="h3" id="open-title">
+        Parties ouvertes
+      </h2>
+      {tables.length === 0 ? (
+        <p class="small" aria-live="polite">
+          Aucune partie ouverte pour l'instant. Elles apparaissent ici dès que quelqu'un ouvre une salle.
+        </p>
+      ) : (
+        <ul class="setup-list" style="margin:0;padding:0;list-style:none" aria-live="polite">
+          {tables.map((t) => {
+            const full = t.players >= MAX_PLAYERS;
+            const who = t.host.length ? t.host.join(', ') : 'Salle ' + t.code;
+            const where = t.started ? 'en jeu, manche ' + Math.min(t.round, t.rounds) + '/' + t.rounds : 'en attente';
+            return (
+              <li class="setup-row open-table" key={t.code}>
+                <span class="setup-name">
+                  {who}
+                  <span class="small lobby-dev">
+                    {t.players} joueur{t.players > 1 ? 's' : ''} · {where} · {t.mode === 'banque' ? 'banque' : 'croupier tournant'}
+                  </span>
+                </span>
+                <button type="button" class="btn sm gold" onClick={() => onJoin(t.code)} disabled={full} aria-label={(full ? 'Complète : ' : 'Rejoindre ') + who}>
+                  {full ? 'Complète' : 'Rejoindre'}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }

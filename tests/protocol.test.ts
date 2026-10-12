@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { cleanRoomCode, controlled, joinLobby, leaveLobby, newRoomCode, parseMessage, redact, seatsFor } from '../src/net/protocol';
+import { freshTables, parseTable, TABLE_TTL_MS } from '../src/net/directory';
+import { normalizePersisted } from '../src/game/persist';
+import { cleanRoomCode, controlled, joinLobby, knownDevices, leaveLobby, newRoomCode, parseMessage, redact, seatsFor } from '../src/net/protocol';
 import { createVirtualGame } from '../src/game/virtual';
 import { seeded, settings } from './helpers';
 
@@ -58,5 +60,40 @@ describe('messages', () => {
     expect(parseMessage({ k: 'intent', from: 'a', intent: { t: 'play', pid: 'p', action: 'voler' } })).toBeNull();
     expect(parseMessage({ k: 'state', from: 'a', rev: 1, game: { players: [] } })).toBeNull();
     expect(parseMessage({ k: 'hello', from: 'a', names: ['  Bob  ', 3, ''] })).toEqual({ k: 'hello', from: 'a', names: ['Bob'] });
+  });
+});
+
+describe('salle verrouillée', () => {
+  it('le refus ne vise qu’un appareil', () => {
+    expect(parseMessage({ k: 'locked', from: 'dh', to: 'dx' })).toEqual({ k: 'locked', from: 'dh', to: 'dx' });
+    expect(parseMessage({ k: 'locked', from: 'dh' })).toBeNull();
+  });
+  it('ceux déjà dans la salle peuvent revenir', () => {
+    const known = knownDevices({ lobby: [{ name: 'Alice', device: 'da' }], seats: { p2: 'db' }, guests: [{ name: 'Zoé', device: 'dz' }] });
+    expect([...known].sort()).toEqual(['da', 'db', 'dz']);
+    expect(knownDevices({ lobby: [], seats: null, guests: [] }).size).toBe(0);
+  });
+  it('une salle sauvegardée sans verrou est ouverte', () => {
+    const base = { settings: {}, room: { role: 'host', code: 'ABCD', mode: 'tournant', lobby: [], seats: null, guests: [] } };
+    const open = normalizePersisted(base).room;
+    expect(open?.role === 'host' && open.locked).toBe(false);
+    const locked = normalizePersisted({ ...base, room: { ...base.room, locked: true } }).room;
+    expect(locked?.role === 'host' && locked.locked).toBe(true);
+  });
+});
+
+describe('parties ouvertes', () => {
+  const t = { code: 'abcd', host: ['  Alice '], players: 3, started: true, round: 2, rounds: 3, mode: 'banque' };
+  it('relit une annonce défensivement', () => {
+    expect(parseTable(t)).toEqual({ code: 'ABCD', host: ['Alice'], players: 3, started: true, round: 2, rounds: 3, mode: 'banque' });
+    expect(parseTable({ ...t, code: 'AB' })).toBeNull();
+    expect(parseTable({ ...t, players: 99, mode: 'x', host: 'Alice' })).toMatchObject({ players: 8, mode: 'tournant', host: [] });
+  });
+  it('oublie les salles qui ne s’annoncent plus', () => {
+    const a = parseTable(t)!;
+    const b = { ...a, code: 'EFGH' };
+    const seen = { ABCD: { table: a, at: 1000 }, EFGH: { table: b, at: 5000 } };
+    expect(freshTables(seen, 6000).map((x) => x.code)).toEqual(['EFGH', 'ABCD']);
+    expect(freshTables(seen, 1000 + TABLE_TTL_MS + 1).map((x) => x.code)).toEqual(['EFGH']);
   });
 });
