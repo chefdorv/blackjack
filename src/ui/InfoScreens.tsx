@@ -142,7 +142,7 @@ function virtualRules(s: Settings): Array<[string, string]> {
     ['Doubler', 'sur ses deux premières cartes : la mise double et on reçoit une seule carte.' + (t.doubleAfterSplit ? ' Permis aussi après un split.' : ' Pas après un split.')],
     ['Splitter', 'une paire (deux cartes de même valeur) : une seule fois par main. Deux As splittés reçoivent une seule carte chacun, et 21 n’y vaut pas blackjack.'],
     ['Croupier tournant :', 'le croupier du moment ne mise pas ; il encaisse les mises perdues et paie les gains avec son propre tas.'],
-    ['Banque automatique :', 'l’application tient la banque ; une manche dure autant de donnes que le nombre de joueurs × ' + plural(s.deals, 'donne') + '.'],
+    ['Banque automatique :', 'l’application tient la banque ; une manche dure ' + plural(s.bankDeals, 'donne') + ', tout le monde mise à chaque donne.'],
     ['Recave automatique.', 'Un tas qui tombe à 0 (ou un croupier qui ne peut pas payer toute la table) reprend ' + s.rebuyChips + ' jetons, avec un malus de ' + s.rebuyMalus + ' au classement.'],
     ['Défis.', 'L’application voit toutes les mains et valide les défis toute seule ; les gains vont directement sur le tas. Les défis réécrits ou ajoutés dans les réglages se réclament à la main.'],
     ['Classement final :', 'jetons en fin de partie − malus de recave + ' + s.bonusBJ + ' au roi du blackjack.'],

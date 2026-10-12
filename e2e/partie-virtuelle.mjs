@@ -115,15 +115,18 @@ try {
   console.log('Donne 1 : Bob double et gagne, Alice croupier se recave');
   await step('mise bornée par la manche', async () => {
     const bet = page.locator('.bet-panel').getByLabel('Bob', { exact: true });
-    const quick = page.locator('.bet-panel').getByRole('group', { name: 'Mises rapides pour Bob' });
-    await quick.getByRole('button', { name: /Max/ }).click();
-    check((await bet.inputValue()) === '10', 'raccourci Max : ' + (await bet.inputValue()));
-    await quick.getByRole('button', { name: /Milieu/ }).click();
-    check((await bet.inputValue()) === '8', 'raccourci Milieu : ' + (await bet.inputValue()));
+    const btnBet = (name) => page.locator('.bet-panel').getByRole('button', { name, exact: true });
+    await btnBet('Ajouter 5 : Bob').click();
+    check((await bet.inputValue()) === '10', '+5 : ' + (await bet.inputValue()));
+    await btnBet('Miser un jeton de moins pour Bob').click();
+    check((await bet.inputValue()) === '9', '−1 : ' + (await bet.inputValue()));
+    await btnBet('Retirer 5 : Bob').click();
+    check((await bet.inputValue()) === '5', '−5 borné au minimum : ' + (await bet.inputValue()));
+    await btnBet('Miser un jeton de plus pour Bob').click();
     await bet.focus();
     check((await bet.inputValue()) === '', 'l’ancienne mise reste dans le champ : ' + (await bet.inputValue()));
     await bet.press('Tab');
-    check((await bet.inputValue()) === '8', 'mise non remise après un champ laissé vide : ' + (await bet.inputValue()));
+    check((await bet.inputValue()) === '6', 'mise non remise après un champ laissé vide : ' + (await bet.inputValue()));
     check((await page.locator('.brand').count()) === 0, 'le bandeau du nom reste affiché en partie');
     await bet.fill('50');
     await bet.press('Tab');

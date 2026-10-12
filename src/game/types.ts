@@ -54,7 +54,10 @@ export interface BetRange {
 export interface Settings {
   startChips: number;
   rounds: number;
+  /** Croupier tournant (et vraies cartes) : donnes de chaque croupier avant que la main passe. */
   deals: number;
+  /** Banque automatique : donnes d'une manche. */
+  bankDeals: number;
   playerSlots: number;
   dealerSlots: number;
   rebuyChips: number;
@@ -70,6 +73,7 @@ export type NumericSettingKey =
   | 'startChips'
   | 'rounds'
   | 'deals'
+  | 'bankDeals'
   | 'playerSlots'
   | 'dealerSlots'
   | 'rebuyChips'

@@ -196,8 +196,10 @@ Toutes réglables dans l'onglet Réglages, et affichées avec les valeurs en cou
 l'onglet Règles.
 
 - 3 à 8 joueurs, 100 jetons chacun au départ.
-- Chaque joueur est croupier pendant 5 donnes, puis la main passe à gauche.
-  Une manche = tout le monde a été croupier une fois. 3 manches.
+- Croupier tournant : chaque joueur est croupier pendant 3 donnes, puis la main passe
+  à gauche. Une manche = tout le monde a été croupier une fois. 3 manches.
+- Banque automatique : une manche = 5 donnes, quel que soit le nombre de joueurs.
+- Les deux se règlent à la création de la partie (et dans Réglages).
 - Le croupier tire jusqu'à 16 et reste à 17. Blackjack payé 3 contre 2, arrondi au
   jeton supérieur. Pas d'assurance, un seul split par main.
 - Mises : 5 à 10 (manche 1), 10 à 20 (manche 2), 15 à 30 (manche 3).

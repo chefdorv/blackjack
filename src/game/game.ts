@@ -83,7 +83,9 @@ export interface AdvanceResult {
 export function advance(game: Game, s: Settings): AdvanceResult {
   const g = structuredClone(game);
   if (g.finished || g.settling) return { game, event: 'donne', label: '' };
-  if (g.deal < s.deals) {
+  // Banque automatique : pas de croupier qui tourne, une manche = un nombre fixe de donnes.
+  const bank = g.virtual?.mode === 'banque';
+  if (g.deal < (bank ? s.bankDeals : s.deals)) {
     g.deal++;
     return { game: g, event: 'donne', label: 'Donne suivante' };
   }
@@ -92,8 +94,8 @@ export function advance(game: Game, s: Settings): AdvanceResult {
   g.deal = 1;
   g.dealersDone++;
   g.dealer = (g.dealer + 1) % n;
-  const label = 'Fin des donnes de ' + out.name;
-  if (g.dealersDone >= n) {
+  const label = bank ? 'Dernière donne de la manche' : 'Fin des donnes de ' + out.name;
+  if (bank || g.dealersDone >= n) {
     g.dealersDone = 0;
     g.settling = { round: g.round };
     return { game: g, event: 'fin-de-manche', label };

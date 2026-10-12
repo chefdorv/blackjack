@@ -52,6 +52,7 @@ export function Stepper({
   allowEmpty = false,
   hideLabel = false,
   clearOnFocus = false,
+  bigStep,
   sub,
 }: {
   id: string;
@@ -68,6 +69,8 @@ export function Stepper({
   hideLabel?: boolean;
   /** Vide le champ quand on le touche : on tape la nouvelle valeur sans effacer l'ancienne (remise si rien n'est tapé). */
   clearOnFocus?: boolean;
+  /** Deuxième paire de boutons (ex. −5 / +5) autour de −1 / +1 ; les réglages passent alors sous le libellé. */
+  bigStep?: number;
   sub?: ComponentChildren;
 }) {
   const clamp = (n: number) => Math.max(min, Math.min(max, Math.round(n)));
@@ -90,10 +93,16 @@ export function Stepper({
     onChange(v);
     el.value = String(v);
   };
-  const dec = step === 1 ? '−' : '−' + step;
-  const inc = step === 1 ? '+' : '+' + step;
+  const dec = step === 1 && !bigStep ? '−' : '−' + step;
+  const inc = step === 1 && !bigStep ? '+' : '+' + step;
+  const big = (sign: 1 | -1) =>
+    bigStep ? (
+      <button type="button" class="qbtn big-step" onClick={() => onChange(clamp((value ?? 0) + sign * bigStep))} aria-label={(sign > 0 ? 'Ajouter ' : 'Retirer ') + bigStep + ' : ' + label}>
+        {(sign > 0 ? '+' : '−') + bigStep}
+      </button>
+    ) : null;
   return (
-    <div class="set-row">
+    <div class={'set-row' + (bigStep ? ' stacked' : '')}>
       <div class="grow">
         <label class={hideLabel ? 'sr' : 'set-label'} for={id}>
           {label}
@@ -101,6 +110,7 @@ export function Stepper({
         {sub}
       </div>
       <div class="step">
+        {big(-1)}
         <button type="button" class="qbtn" onClick={() => onChange(clamp((value ?? 0) - step))} aria-label={decLabel ?? 'Diminuer ' + label}>
           {dec}
         </button>
@@ -133,6 +143,7 @@ export function Stepper({
         <button type="button" class="qbtn" onClick={() => onChange(clamp((value ?? 0) + step))} aria-label={incLabel ?? 'Augmenter ' + label}>
           {inc}
         </button>
+        {big(1)}
       </div>
     </div>
   );

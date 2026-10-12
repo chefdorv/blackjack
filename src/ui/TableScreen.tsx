@@ -6,7 +6,7 @@ import { levelLabel } from '../game/defaults';
 import { plural, signed } from '../game/format';
 import { betFor } from '../game/settings';
 import type { Challenge, Game, Player, Settings, Virtual } from '../game/types';
-import { betRange, chipsOf, quickBets, dealerPlayer, legal, seatedPlayers, turnPid } from '../game/virtual';
+import { betRange, chipsOf, dealerPlayer, legal, seatedPlayers, turnPid } from '../game/virtual';
 import { Stepper } from './common';
 import { CardBack, PlayingCard, totalLabel } from './PlayingCard';
 
@@ -183,9 +183,7 @@ function Table({ game: g, settings: s, controls, onBet, onReady, onPlay, onNext,
   const turn = turnPid(g);
   const busy = round !== null && !done;
 
-  const dealIndex = g.dealersDone * s.deals + g.deal;
-  const dealsInRound = n * s.deals;
-  const lastOfRound = g.dealersDone >= n - 1 && g.deal >= s.deals;
+  const lastOfRound = bank ? g.deal >= s.bankDeals : g.dealersDone >= n - 1 && g.deal >= s.deals;
   const lastOfDealer = g.deal >= s.deals;
   const nextDealer = g.players[(g.dealer + 1) % n];
   const nextLabel = lastOfRound ? 'Fin de manche : le bilan' : !bank && lastOfDealer ? 'Croupier suivant : ' + nextDealer.name : 'Donne suivante';
@@ -234,8 +232,8 @@ function Table({ game: g, settings: s, controls, onBet, onReady, onPlay, onNext,
         <div class="pill">
           <span class="k">Donne</span>
           <span class="pill-v">
-            {bank ? dealIndex : g.deal}
-            <small>/{bank ? dealsInRound : s.deals}</small>
+            {g.deal}
+            <small>/{bank ? s.bankDeals : s.deals}</small>
           </span>
         </div>
         <div class="pill">
@@ -257,38 +255,23 @@ function Table({ game: g, settings: s, controls, onBet, onReady, onPlay, onNext,
             <>
               {myPending.map((p) => {
                 const br = betRange(g, s, p.id);
-                const bet = v.bets[p.id] ?? br.min;
                 return (
-                  <div key={p.id} class="bet-row">
-                    <Stepper
-                      id={'bet-' + p.id}
-                      label={p.name}
-                      value={bet}
-                      min={br.min}
-                      max={br.max}
-                      clearOnFocus
-                      decLabel={'Miser un jeton de moins pour ' + p.name}
-                      incLabel={'Miser un jeton de plus pour ' + p.name}
-                      onChange={(x) => {
-                        if (x !== null) onBet(p.id, x);
-                      }}
-                      sub={<div class="small">{chipsOf(g, p.id) + ' jetons · mise ' + br.min + ' à ' + br.max}</div>}
-                    />
-                    <div class="bet-quick" role="group" aria-label={'Mises rapides pour ' + p.name}>
-                      {quickBets(br.min, br.max).map((q) => (
-                        <button
-                          type="button"
-                          key={q.label}
-                          class={'btn sm' + (bet === q.amount ? ' on' : ' ghost')}
-                          aria-pressed={bet === q.amount}
-                          onClick={() => onBet(p.id, q.amount)}
-                        >
-                          <span class="bq-k">{q.label}</span>
-                          <b>{q.amount}</b>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  <Stepper
+                    key={p.id}
+                    id={'bet-' + p.id}
+                    label={p.name}
+                    value={v.bets[p.id] ?? br.min}
+                    min={br.min}
+                    max={br.max}
+                    bigStep={5}
+                    clearOnFocus
+                    decLabel={'Miser un jeton de moins pour ' + p.name}
+                    incLabel={'Miser un jeton de plus pour ' + p.name}
+                    onChange={(x) => {
+                      if (x !== null) onBet(p.id, x);
+                    }}
+                    sub={<div class="small">{chipsOf(g, p.id) + ' jetons · mise ' + br.min + ' à ' + br.max}</div>}
+                  />
                 );
               })}
               <button type="button" class="btn big gold" onClick={() => onReady(myPending.map((p) => p.id), true)}>

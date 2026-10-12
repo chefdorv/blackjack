@@ -49,9 +49,10 @@ export function DurationFields({
 }) {
   const bank = mode === 'banque';
   const n = Math.max(players, 1);
+  const key = bank ? 'bankDeals' : 'deals';
   const perRound = bank
-    ? 'Une manche : ' + n + ' joueur' + (n > 1 ? 's' : '') + ' × ' + s.deals + ' = ' + n * s.deals + ' donnes'
-    : 'Une manche : chacun est croupier ' + s.deals + ' donne' + (s.deals > 1 ? 's' : '');
+    ? 'Une manche : ' + s.bankDeals + ' donne' + (s.bankDeals > 1 ? 's' : '') + ' contre la banque'
+    : 'Une manche : chacun est croupier ' + s.deals + ' donne' + (s.deals > 1 ? 's' : '') + (players > 1 ? ', soit ' + n * s.deals + ' donnes' : '');
   return (
     <fieldset class="choice">
       <legend class="k">Durée de la partie</legend>
@@ -69,12 +70,12 @@ export function DurationFields({
         />
         <Stepper
           id="setup-deals"
-          label={bank ? 'Donnes par joueur' : 'Donnes par croupier'}
-          value={s.deals}
+          label={bank ? 'Donnes par manche' : 'Donnes par croupier'}
+          value={s[key]}
           min={1}
-          max={20}
+          max={bank ? 50 : 20}
           onChange={(v) => {
-            if (v !== null) onSettings(setNumber(s, 'deals', v));
+            if (v !== null) onSettings(setNumber(s, key, v));
           }}
           sub={<div class="small">{perRound}</div>}
         />
@@ -134,7 +135,7 @@ export function SetupScreen({
   else
     hint =
       names.length + ' joueur' + (names.length > 1 ? 's' : '') + ', ' + s.startChips + ' jetons chacun, ' + s.rounds + ' manche' + (s.rounds > 1 ? 's' : '') + ' de ' +
-      (mode === 'banque' ? names.length * s.deals + ' donnes contre la banque' : dealers + ' × ' + s.deals + ' donne' + (s.deals > 1 ? 's' : '')) + '.';
+      (mode === 'banque' ? s.bankDeals + ' donnes contre la banque' : dealers + ' × ' + s.deals + ' donne' + (s.deals > 1 ? 's' : '')) + '.';
 
   return (
     <section class="panel" aria-labelledby="setup-title">

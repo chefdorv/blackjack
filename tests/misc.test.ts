@@ -112,3 +112,15 @@ describe('format', () => {
     expect([signed(5), signed(-5), signed(0)]).toEqual(['+5', '−5', '0']);
   });
 });
+
+describe('durée des manches', () => {
+  it('3 donnes par croupier et 5 donnes par manche en banque, par défaut', () => {
+    const d = normalizeSettings({});
+    expect([d.deals, d.bankDeals]).toEqual([3, 5]);
+  });
+  it('l’ancien défaut de 5 donnes par croupier passe à 3, un choix récent est gardé', () => {
+    expect(normalizeSettings({ deals: 5 }).deals).toBe(3);
+    expect(normalizeSettings({ deals: 4 }).deals).toBe(4);
+    expect(normalizeSettings({ deals: 5, bankDeals: 7 })).toMatchObject({ deals: 5, bankDeals: 7 });
+  });
+});

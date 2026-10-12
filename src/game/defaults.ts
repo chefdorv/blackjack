@@ -71,7 +71,8 @@ export function defaultSettings(): Settings {
   return {
     startChips: 100,
     rounds: 3,
-    deals: 5,
+    deals: 3,
+    bankDeals: 5,
     playerSlots: 3,
     dealerSlots: 1,
     rebuyChips: 30,

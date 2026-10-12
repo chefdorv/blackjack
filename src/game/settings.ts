@@ -14,6 +14,7 @@ export const SETTING_FIELDS: readonly SettingField[] = [
   { key: 'startChips', label: 'Jetons de départ', min: 10, max: 1000, step: 10 },
   { key: 'rounds', label: 'Nombre de manches', min: 1, max: 10, step: 1 },
   { key: 'deals', label: 'Donnes par croupier', min: 1, max: 20, step: 1 },
+  { key: 'bankDeals', label: 'Donnes par manche (banque automatique)', min: 1, max: 50, step: 1 },
   { key: 'playerSlots', label: 'Défis joueurs sur la table', min: 0, max: 12, step: 1 },
   { key: 'dealerSlots', label: 'Défis croupier sur la table', min: 0, max: 6, step: 1 },
   { key: 'rebuyChips', label: 'Jetons de recave', min: 5, max: 500, step: 5 },
@@ -151,6 +152,8 @@ export function normalizeSettings(raw: unknown): Settings {
   for (const f of SETTING_FIELDS) {
     if (raw[f.key] !== undefined) s[f.key] = clampInt(raw[f.key], f.min, f.max);
   }
+  // Avant 1.5.0 : pas de donnes par manche en banque, et 5 donnes par croupier par défaut (passé à 3).
+  if (raw.bankDeals === undefined && raw.deals === 5) s.deals = d.deals;
   if (Array.isArray(raw.bets)) {
     const bets = raw.bets.filter(isObj).map((b) => ({ min: clampInt(b.min, 1, BET_LIMIT), max: clampInt(b.max, 1, BET_LIMIT) }));
     // Anciennes mises par défaut jamais modifiées (1.1 : 2/4/6, 1.2.0 : 5/5/6) : on passe aux nouvelles.

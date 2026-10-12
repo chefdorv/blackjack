@@ -1,7 +1,7 @@
 {
   "name": "blackjack-potes",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.5.0",
   "type": "module",
   "description": "Application web pour animer une soirée blackjack entre potes : cartes défis, croupier tournant, règlements et championnat.",
   "scripts": {

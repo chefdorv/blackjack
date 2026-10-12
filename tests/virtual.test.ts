@@ -6,7 +6,6 @@ import { liveRanking, pending } from '../src/game/scoring';
 import { normalizeSettings, updateChallenge } from '../src/game/settings';
 import type { Game, Settings, Virtual } from '../src/game/types';
 import {
-  quickBets,
   addPlayers,
   allReady,
   betRange,
@@ -262,8 +261,8 @@ describe('enchaînement', () => {
     expect(vOf(m.game).bets[id(g, 'Bob')]).toBeGreaterThanOrEqual(4);
   });
 
-  it('banque automatique : une manche dure 5 donnes × nombre de joueurs', () => {
-    const s = settings({ deals: 2 });
+  it('banque automatique : une manche dure le nombre de donnes réglé, quel que soit le nombre de joueurs', () => {
+    const s = settings({ deals: 2, bankDeals: 4 });
     let g = start('banque', s);
     let n = 0;
     for (;;) {
@@ -274,7 +273,7 @@ describe('enchaînement', () => {
       g = r.game;
       if (r.event === 'fin-de-manche') break;
     }
-    expect(n).toBe(6);
+    expect(n).toBe(4);
   });
 
   it('fin de partie : les tas deviennent le décompte final', () => {
@@ -362,10 +361,3 @@ describe('arrivée en cours de partie', () => {
   });
 });
 
-describe('mises rapides', () => {
-  it('propose le minimum, le milieu arrondi et le maximum', () => {
-    expect(quickBets(5, 10).map((q) => q.amount)).toEqual([5, 8, 10]);
-    expect(quickBets(10, 20).map((q) => q.amount)).toEqual([10, 15, 20]);
-    expect(quickBets(3, 3).map((q) => q.amount)).toEqual([3, 3, 3]);
-  });
-});
