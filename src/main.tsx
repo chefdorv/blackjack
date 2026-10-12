@@ -8,6 +8,9 @@ import './styles.css';
 import { render } from 'preact';
 import { App } from './App';
 
+// Pas de zoom : Safari sur iPhone ignore « user-scalable=no », on bloque donc le geste de pincement.
+for (const type of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+
 const root = document.getElementById('app');
 if (root) render(<App />, root);
 

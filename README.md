@@ -188,7 +188,7 @@ l'onglet Règles.
   Une manche = tout le monde a été croupier une fois. 3 manches.
 - Le croupier tire jusqu'à 16 et reste à 17. Blackjack payé 3 contre 2, arrondi au
   jeton supérieur. Pas d'assurance, un seul split par main.
-- Mises : 5 à 10 (manche 1), 5 à 20 (manche 2), 6 à 30 (manche 3).
+- Mises : 5 à 10 (manche 1), 10 à 20 (manche 2), 15 à 30 (manche 3).
 - Recave : 30 jetons, malus de 50.
 - 3 défis joueurs et 1 défi croupier toujours en jeu ; un défi ne sort qu'une fois.
 - Fin de manche : chacun prend ses gains de défis ou rembourse ses malus ; ce qui

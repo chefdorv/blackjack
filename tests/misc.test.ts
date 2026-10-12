@@ -31,10 +31,10 @@ describe('réglages', () => {
     const s = setNumber(defaultSettings(), 'rounds', 5);
     expect(s.bets.slice(0, 5)).toEqual([
       { min: 5, max: 10 },
-      { min: 5, max: 20 },
-      { min: 6, max: 30 },
-      { min: 8, max: 40 },
-      { min: 10, max: 50 },
+      { min: 10, max: 20 },
+      { min: 15, max: 30 },
+      { min: 20, max: 40 },
+      { min: 25, max: 50 },
     ]);
     expect(setBet(s, 0, 'min', 15).bets[0]).toEqual({ min: 15, max: 15 });
     expect(setBet(s, 0, 'max', 1).bets[0]).toEqual({ min: 1, max: 1 });
@@ -42,19 +42,27 @@ describe('réglages', () => {
     expect(betFor(s, 99)).toEqual(s.bets[s.bets.length - 1]);
   });
 
-  it('passe les anciennes mises par défaut (2–10, 4–20) aux nouvelles, sans toucher aux mises modifiées', () => {
-    const old = [
+  it('passe les anciennes mises par défaut aux nouvelles (5, 10, 15), sans toucher aux mises modifiées', () => {
+    const now = [
+      { min: 5, max: 10 },
+      { min: 10, max: 20 },
+      { min: 15, max: 30 },
+    ];
+    const v11 = [
       { min: 2, max: 10 },
       { min: 4, max: 20 },
       { min: 6, max: 30 },
     ];
-    expect(normalizeSettings({ bets: old }).bets.slice(0, 3)).toEqual([
+    const v120 = [
       { min: 5, max: 10 },
       { min: 5, max: 20 },
       { min: 6, max: 30 },
-    ]);
-    const custom = [{ min: 2, max: 12 }, ...old.slice(1)];
-    expect(normalizeSettings({ bets: custom }).bets[0]).toEqual({ min: 2, max: 12 });
+    ];
+    expect(normalizeSettings({ bets: v11 }).bets.slice(0, 3)).toEqual(now);
+    expect(normalizeSettings({ bets: v120 }).bets.slice(0, 3)).toEqual(now);
+    expect(normalizeSettings({ bets: [...v120, { min: 8, max: 40 }] }).bets[3]).toEqual({ min: 8, max: 40 });
+    const custom = [{ min: 2, max: 12 }, ...v11.slice(1)];
+    expect(normalizeSettings({ bets: custom }).bets.slice(0, 3)).toEqual([{ min: 2, max: 12 }, ...v11.slice(1)]);
   });
 
   it('borne les valeurs saisies', () => {

@@ -39,7 +39,7 @@ function cloneSettings(s: Settings): Settings {
  * Mute et renvoie `s`.
  */
 export function fixBets(s: Settings): Settings {
-  if (!Array.isArray(s.bets) || s.bets.length === 0) s.bets = [{ min: 2, max: 10 }];
+  if (!Array.isArray(s.bets) || s.bets.length === 0) s.bets = [{ min: 5, max: 10 }];
   s.bets = s.bets.map((b) => {
     const min = clampInt(b.min, 1, BET_LIMIT);
     const max = clampInt(b.max, 1, BET_LIMIT);
@@ -47,14 +47,14 @@ export function fixBets(s: Settings): Settings {
   });
   while (s.bets.length < s.rounds) {
     const last = s.bets[s.bets.length - 1];
-    s.bets.push({ min: Math.min(BET_LIMIT, last.min + 2), max: Math.min(BET_LIMIT, last.max + 10) });
+    s.bets.push({ min: Math.min(BET_LIMIT, last.min + 5), max: Math.min(BET_LIMIT, last.max + 10) });
   }
   return s;
 }
 
 export function betFor(s: Settings, round: number): BetRange {
   const i = Math.min(Math.max(round, 1), s.bets.length) - 1;
-  return s.bets[i] ?? { min: 2, max: 10 };
+  return s.bets[i] ?? { min: 5, max: 10 };
 }
 
 export function setNumber(s: Settings, key: NumericSettingKey, value: unknown): Settings {
@@ -142,6 +142,8 @@ function isObj(v: unknown): v is Record<string, unknown> {
 }
 
 /** Reconstruit des réglages valides à partir de n'importe quelle donnée (localStorage corrompu, ancienne version…). */
+const OLD_DEFAULT_BETS = ['2-10,4-20,6-30', '5-10,5-20,6-30'];
+
 export function normalizeSettings(raw: unknown): Settings {
   const d = defaultSettings();
   if (!isObj(raw)) return d;
@@ -151,12 +153,12 @@ export function normalizeSettings(raw: unknown): Settings {
   }
   if (Array.isArray(raw.bets)) {
     const bets = raw.bets.filter(isObj).map((b) => ({ min: clampInt(b.min, 1, BET_LIMIT), max: clampInt(b.max, 1, BET_LIMIT) }));
-    // Anciennes mises par défaut jamais modifiées (2–10 puis 4–20) : on passe aux nouvelles (5–10 puis 5–20).
-    const [m1, m2] = bets;
-    if (m1?.min === 2 && m1.max === 10 && m2?.min === 4 && m2.max === 20) {
-      bets[0] = { ...d.bets[0] };
-      bets[1] = { ...d.bets[1] };
-    }
+    // Anciennes mises par défaut jamais modifiées (1.1 : 2/4/6, 1.2.0 : 5/5/6) : on passe aux nouvelles.
+    const key = bets
+      .slice(0, 3)
+      .map((b) => b.min + '-' + b.max)
+      .join(',');
+    if (OLD_DEFAULT_BETS.includes(key)) bets.splice(0, 3, ...d.bets.map((b) => ({ ...b })));
     if (bets.length) s.bets = bets;
   }
   if (Array.isArray(raw.challenges)) {

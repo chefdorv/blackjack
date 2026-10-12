@@ -79,8 +79,8 @@ export function defaultSettings(): Settings {
     bonusBJ: 10,
     bets: [
       { min: 5, max: 10 },
-      { min: 5, max: 20 },
-      { min: 6, max: 30 },
+      { min: 10, max: 20 },
+      { min: 15, max: 30 },
     ],
     challenges: defaultChallenges(),
     table: defaultTableRules(),
