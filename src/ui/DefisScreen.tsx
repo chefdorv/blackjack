@@ -5,7 +5,9 @@ import type { Challenge, ChallengeKind, Game, Settings } from '../game/types';
 import { Dialog } from './common';
 
 function noteFor(c: Challenge, g: Game): string {
-  return kindOf(c) === 'croupier' ? 'Réservé au croupier : ' + g.players[g.dealer].name : 'Premier qui réussit';
+  if (kindOf(c) === 'croupier') return 'Réservé au croupier : ' + g.players[g.dealer].name;
+  if (g.virtual) return c.auto ? 'Validé automatiquement' : 'À réclamer à la main';
+  return 'Premier qui réussit';
 }
 
 const KIND_LABEL: Record<ChallengeKind, string> = { joueur: 'défis joueurs', croupier: 'défis croupier' };
@@ -54,11 +56,20 @@ export function DefisScreen({
             </button>
           )}
         </div>
+        {g?.virtual ? (
+          <p class="muted">
+            Il y a toujours {plural(s.playerSlots, 'défi joueur', 'défis joueurs')}
+            {s.dealerSlots > 0 ? ' et ' + plural(s.dealerSlots, 'défi croupier', 'défis croupier') : ''} sur la table. L'application voit toutes les
+            mains : dès qu'un joueur réussit un défi, les jetons vont sur son tas et une nouvelle carte du même type est tirée. Seuls les défis que vous
+            avez écrits vous-mêmes se réclament à la main.
+          </p>
+        ) : (
         <p class="muted">
           Il y a toujours {plural(s.playerSlots, 'défi joueur', 'défis joueurs')} et {plural(s.dealerSlots, 'défi croupier', 'défis croupier')} sur la
           table. Le premier qui réussit un défi le réclame et empoche les jetons, puis une nouvelle carte du même type est tirée pour le remplacer. Le
           défi croupier (violet) ne peut être réclamé que par le croupier en cours. Un défi ne sort qu'une fois par partie.
         </p>
+        )}
         {pool && active && (
           <div class="pool" aria-label="Défis restants dans la pioche">
             <span class="badge">Pioche joueurs : {pool.joueur}</span>
@@ -118,7 +129,7 @@ export function DefisScreen({
                     </span>
                   </span>
                 </button>
-                {flipped && (
+                {flipped && !(g.virtual && c.auto) && (
                   <button type="button" class="btn gold claim" onClick={() => onClaim(c.id)} disabled={vanishing !== null} aria-label={'Réclamer : ' + c.text}>
                     Réclamer
                   </button>

@@ -1,9 +1,15 @@
 # Blackjack entre potes
 
-Application web mobile pour animer une soirée blackjack entre amis, façon jeu de société.
-On joue avec de vraies cartes et de vrais jetons, sans argent : l'application remplace
-les cartes défis à imprimer et la feuille de score. Un seul téléphone ou une tablette
-est posé au milieu de la table.
+Application web mobile pour animer une soirée blackjack entre amis, façon jeu de société,
+sans argent. Deux façons de jouer, au choix sur l'écran de création :
+
+- **Avec de vraies cartes** : cartes et jetons sur la table ; l'application remplace les
+  cartes défis à imprimer et la feuille de score. Un seul téléphone ou une tablette est
+  posé au milieu de la table.
+- **Tout dans l'app** : cartes, mises et jetons virtuels. Croupier tournant (chacun paie la
+  table avec ses jetons, l'application tire ses cartes) ou banque automatique. Les défis
+  sont validés automatiquement. Sur un seul appareil qu'on se passe, ou à plusieurs
+  téléphones (voir plus bas).
 
 - Croupier tournant, manches, mises par manche
 - Cartes défis tirées au hasard, retournées d'un geste, réclamées par le premier qui réussit
@@ -13,7 +19,9 @@ est posé au milieu de la table.
 - Tout est sauvegardé dans le navigateur : fermer ou recharger la page ne fait rien perdre
 - Installable sur l'écran d'accueil (PWA) et utilisable hors ligne
 
-Site 100 % statique : pas de serveur, pas de compte.
+Site 100 % statique : pas de serveur, pas de compte. Seul le jeu à plusieurs téléphones
+passe par un canal temps réel Supabase, celui du projet de Dooka (aucune table, aucune
+donnée enregistrée).
 
 En ligne : **https://blackjack.dooka.fr** (non indexé par les moteurs de recherche).
 
@@ -42,6 +50,10 @@ npm run typecheck  # vérification TypeScript
 npm run build      # construit le site dans dist/
 npm run e2e        # joue une partie complète dans Chrome (après npm run build)
 ```
+
+`npm run e2e:virtuel` joue une partie « Tout dans l'app » avec un sabot truqué (double,
+split, défis validés, recave du croupier, bilan, podium), vérifie l'animation de
+distribution, puis une partie à deux téléphones simulés par deux onglets.
 
 `npm run e2e` joue une partie de 3 joueurs en 1 manche et 1 donne par croupier :
 réglages, création, défis, recave, blackjacks, correction, annulation, rechargement,
@@ -94,6 +106,31 @@ par Netlify et GitHub Pages) ; en local, `localhost` suffit.
 
 Après une nouvelle mise en ligne, l'application se met à jour à la visite suivante.
 
+## Jouer à plusieurs téléphones
+
+Un téléphone ouvre une salle (code de 4 lettres) et fait tourner la partie ; les autres
+la rejoignent avec le code ou le lien partagé, misent et jouent leurs mains depuis leur
+téléphone. Les messages passent par Supabase Realtime (diffusion, sans table ni compte),
+sur le projet Supabase de Dooka : les salles sont des canaux `bj-ABCD`, rien n'est écrit
+dans sa base. Les options n'apparaissent que si ces deux valeurs sont connues au build :
+
+```
+VITE_SUPABASE_URL=https://ybnacpzicldzsmmypupj.supabase.co
+VITE_SUPABASE_KEY=sb_publishable_… (clé publique du projet)
+```
+
+- En local : fichier `.env` à la racine (exclu de git).
+- Sur GitHub : variables du dépôt (**Settings** → **Secrets and variables** → **Actions** →
+  onglet **Variables**), lues par `.github/workflows/pages.yml` au moment du build. La clé
+  n'est volontairement pas écrite dans le code du dépôt public.
+
+Si la clé publique du projet Dooka change, mettre à jour ces deux endroits puis republier.
+
+Pour essayer sans Supabase, dans un même navigateur : ouvrir
+`http://localhost:5173/?reseau=local&appareil=a` et
+`http://localhost:5173/?reseau=local&appareil=b` dans deux onglets (chaque `appareil`
+a sa propre sauvegarde, comme deux téléphones).
+
 ## Organisation du code
 
 ```
@@ -108,6 +145,11 @@ src/
     history.ts     historique d'annulation (60 actions)
     names.ts       saisie des noms de joueurs
     persist.ts     relecture défensive de l'état sauvegardé
+    blackjack.ts   moteur de blackjack : sabot, mains, tirer/rester/doubler/splitter, croupier, paiements
+    virtual.ts     partie « Tout dans l'app » : tas, mises, recaves automatiques, enchaînement
+    detect.ts      validation automatique des défis à partir des mains
+    intents.ts     demandes des joueurs (miser, jouer…), appliquées localement ou par l'hôte
+  net/           parties à plusieurs téléphones (messages, salle d'attente, transport, hook)
   storage.ts     accès à localStorage (protégé par try/catch)
   App.tsx        état de l'application et actions
   ui/            écrans et composants (Preact)

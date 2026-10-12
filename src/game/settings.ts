@@ -1,5 +1,6 @@
-import { defaultChallenges, defaultSettings, isLevel } from './defaults';
-import type { BetRange, Challenge, Level, NumericSettingKey, Settings } from './types';
+import { defaultTableRules, type TableRules } from './blackjack';
+import { defaultAutoKey, defaultChallenges, defaultSettings, isLevel } from './defaults';
+import { AUTO_KEYS, type AutoKey, type BetRange, type Challenge, type Level, type NumericSettingKey, type Settings } from './types';
 
 export interface SettingField {
   key: NumericSettingKey;
@@ -80,8 +81,40 @@ export function updateChallenge(s: Settings, id: string, patch: Partial<Omit<Cha
   if (!c) return s;
   if (patch.level !== undefined && isLevel(patch.level)) c.level = patch.level;
   if (patch.reward !== undefined) c.reward = clampInt(patch.reward, 0, REWARD_LIMIT);
-  if (patch.text !== undefined) c.text = patch.text;
+  if (patch.text !== undefined) {
+    c.text = patch.text;
+    // Un défi réécrit ne correspond plus forcément à ce que l'application sait vérifier.
+    const auto = defaultAutoKey(c.id, c.text);
+    if (auto) c.auto = auto;
+    else delete c.auto;
+  }
   return next;
+}
+
+export const DECKS_MIN = 1;
+export const DECKS_MAX = 8;
+
+export function setTable(s: Settings, patch: Partial<TableRules>): Settings {
+  const next = cloneSettings(s);
+  next.table = normalizeTable({ ...next.table, ...patch });
+  return next;
+}
+
+function isAutoKey(v: unknown): v is AutoKey {
+  return AUTO_KEYS.some((k) => k === v);
+}
+
+export function normalizeTable(raw: unknown): TableRules {
+  const d = defaultTableRules();
+  if (!isObj(raw)) return d;
+  const pen = typeof raw.penetration === 'number' && Number.isFinite(raw.penetration) ? raw.penetration : d.penetration;
+  return {
+    decks: raw.decks === undefined ? d.decks : clampInt(raw.decks, DECKS_MIN, DECKS_MAX),
+    penetration: Math.max(0.5, Math.min(0.9, pen)),
+    hitSoft17: typeof raw.hitSoft17 === 'boolean' ? raw.hitSoft17 : d.hitSoft17,
+    doubleAfterSplit: typeof raw.doubleAfterSplit === 'boolean' ? raw.doubleAfterSplit : d.doubleAfterSplit,
+    holeCard: raw.holeCard === 'americaine' || raw.holeCard === 'europeenne' ? raw.holeCard : d.holeCard,
+  };
 }
 
 export function addChallenge(s: Settings, level: Level, reward: unknown, text: string, id: string): Settings {
@@ -125,8 +158,12 @@ export function normalizeSettings(raw: unknown): Settings {
     s.challenges = raw.challenges.filter(isObj).flatMap((c) => {
       if (typeof c.id !== 'string' || seen.has(c.id) || !isLevel(c.level) || typeof c.text !== 'string') return [];
       seen.add(c.id);
-      return [{ id: c.id, level: c.level, reward: clampInt(c.reward, 0, REWARD_LIMIT), text: c.text }];
+      const auto = isAutoKey(c.auto) ? c.auto : defaultAutoKey(c.id, c.text);
+      const out: Challenge = { id: c.id, level: c.level, reward: clampInt(c.reward, 0, REWARD_LIMIT), text: c.text };
+      if (auto) out.auto = auto;
+      return [out];
     });
   }
+  s.table = normalizeTable(raw.table);
   return fixBets(s);
 }

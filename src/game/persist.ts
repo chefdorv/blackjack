@@ -1,15 +1,27 @@
 // Reconstruction défensive de l'état sauvegardé : tout ce qui vient du stockage est `unknown`.
+import { isCard, type Card, type Hand, type HandMove, type Outcome, type Round, type Seat, type Shoe } from './blackjack';
 import { isLevel, defaultSettings } from './defaults';
 import { HISTORY_MAX } from './history';
 import { MAX_PLAYERS, NAME_MAX } from './names';
-import { normalizeSettings } from './settings';
-import type { Championship, ClaimRecord, Game, HistoryEntry, Night, Player, Settings } from './types';
+import { normalizeSettings, normalizeTable } from './settings';
+import type { Championship, ClaimRecord, DealSummary, Game, HistoryEntry, Night, Player, Settings, Virtual } from './types';
 
 export const TABS = ['table', 'defis', 'rank', 'rules', 'settings'] as const;
 export type Tab = (typeof TABS)[number];
 
+/** Choix du mode sur l'écran de création : vraies cartes, ou tout dans l'app avec l'un des deux croupiers. */
+export type SetupMode = 'reel' | 'tournant' | 'banque';
+export const SETUP_MODES: readonly SetupMode[] = ['reel', 'tournant', 'banque'];
+
+/** Partie à plusieurs téléphones en cours (voir src/net) ; relue sans dépendre du réseau. */
+export type PersistedRoom =
+  | { role: 'host'; code: string; mode: 'tournant' | 'banque'; lobby: Array<{ name: string; device: string }>; seats: Record<string, string> | null }
+  | { role: 'guest'; code: string; names: string[] };
+
 export interface Persisted {
   settings: Settings;
+  setupMode: SetupMode;
+  room: PersistedRoom | null;
   game: Game | null;
   history: HistoryEntry[];
   champ: Championship;
@@ -18,7 +30,7 @@ export interface Persisted {
 }
 
 export function emptyState(): Persisted {
-  return { settings: defaultSettings(), game: null, history: [], champ: { nights: [] }, setupNames: [], tab: 'table' };
+  return { settings: defaultSettings(), setupMode: 'reel', room: null, game: null, history: [], champ: { nights: [] }, setupNames: [], tab: 'table' };
 }
 
 type Obj = Record<string, unknown>;
@@ -86,7 +98,135 @@ export function normalizeGame(v: unknown): Game | null {
     finished: v.finished === true,
     revealed: v.revealed === true,
     savedNightId: typeof v.savedNightId === 'string' ? v.savedNightId : null,
+    virtual: normVirtual(v.virtual, players),
   };
+}
+
+// ---- mode virtuel ----
+
+function cards(v: unknown): Card[] {
+  return Array.isArray(v) ? v.filter(isCard) : [];
+}
+
+function numRecord(v: unknown, ids: readonly string[], min: number): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!isObj(v)) return out;
+  for (const id of ids) if (typeof v[id] === 'number') out[id] = int(v[id], min, min);
+  return out;
+}
+
+function normShoe(v: unknown): Shoe | null {
+  if (!isObj(v)) return null;
+  const list = cards(v.cards);
+  return { cards: list, size: int(v.size, list.length, list.length), decks: int(v.decks, 0, 0) };
+}
+
+const OUTCOMES: readonly Outcome[] = ['blackjack', 'gagne', 'egalite', 'perdu', 'saute'];
+const ACTIONS: readonly HandMove['action'][] = ['tirer', 'rester', 'doubler', 'splitter'];
+
+function normHand(v: unknown): Hand | null {
+  if (!isObj(v)) return null;
+  const moves = Array.isArray(v.moves)
+    ? v.moves.filter(isObj).flatMap((m) => {
+        const action = ACTIONS.find((a) => a === m.action);
+        return action ? [{ action, before: int(m.before, 0, 0), after: int(m.after, 0, 0) }] : [];
+      })
+    : [];
+  return {
+    cards: cards(v.cards),
+    bet: int(v.bet, 1, 1),
+    doubled: v.doubled === true,
+    fromSplit: v.fromSplit === true,
+    done: v.done === true,
+    moves,
+    outcome: OUTCOMES.find((o) => o === v.outcome) ?? null,
+    net: int(v.net, 0),
+  };
+}
+
+function normSeat(v: unknown, ids: readonly string[]): Seat | null {
+  if (!isObj(v) || typeof v.pid !== 'string' || !ids.includes(v.pid) || !Array.isArray(v.hands)) return null;
+  const hands = v.hands.map(normHand).filter((h): h is Hand => h !== null);
+  if (hands.length < 1 || hands.length > 2) return null;
+  return { pid: v.pid, chips: int(v.chips, 0, 0), stake: int(v.stake, hands[0].bet, 1), start: cards(v.start), hands };
+}
+
+function normRound(v: unknown, ids: readonly string[]): Round | null {
+  if (!isObj(v) || !Array.isArray(v.seats)) return null;
+  const shoe = normShoe(v.shoe);
+  const seats = v.seats.map((s) => normSeat(s, ids)).filter((s): s is Seat => s !== null);
+  if (!shoe || seats.length === 0) return null;
+  const phase = v.phase === 'terminee' ? 'terminee' : 'joueurs';
+  let turn: Round['turn'] = null;
+  if (phase === 'joueurs' && isObj(v.turn)) {
+    const seat = int(v.turn.seat, -1);
+    const hand = int(v.turn.hand, -1);
+    if (seats[seat]?.hands[hand] && !seats[seat].hands[hand].done) turn = { seat, hand };
+  }
+  // Une donne en cours sans main à jouer est incohérente : on l'abandonne.
+  if (phase === 'joueurs' && !turn) return null;
+  return { rules: normalizeTable(v.rules), shoe, seats, dealer: cards(v.dealer), phase, turn, shuffled: v.shuffled === true };
+}
+
+function normSummary(v: unknown, ids: readonly string[]): DealSummary | null {
+  if (!isObj(v)) return null;
+  const pids = (x: unknown) => strList(x).filter((id) => ids.includes(id));
+  return {
+    before: numRecord(v.before, ids, 0),
+    nets: numRecord(v.nets, ids, -Infinity),
+    claims: Array.isArray(v.claims)
+      ? v.claims.filter(isObj).flatMap((c) =>
+          typeof c.pid === 'string' && ids.includes(c.pid) && typeof c.cid === 'string' ? [{ pid: c.pid, cid: c.cid, text: str(c.text), reward: int(c.reward, 0, 0) }] : [],
+        )
+      : [],
+    rebuys: pids(v.rebuys),
+    blackjacks: pids(v.blackjacks),
+  };
+}
+
+function normVirtual(v: unknown, players: readonly Player[]): Virtual | null {
+  if (!isObj(v)) return null;
+  const ids = players.map((p) => p.id);
+  const shoe = normShoe(v.shoe);
+  if (!shoe) return null;
+  const chips = numRecord(v.chips, ids, 0);
+  for (const id of ids) if (chips[id] === undefined) chips[id] = 0;
+  let phase: Virtual['phase'] = v.phase === 'jeu' || v.phase === 'bilan' ? v.phase : 'mises';
+  let round = phase === 'mises' ? null : normRound(v.round, ids);
+  if (phase === 'jeu' && round?.phase !== 'joueurs') phase = round ? 'bilan' : 'mises';
+  if (phase === 'bilan' && round?.phase !== 'terminee') {
+    phase = 'mises';
+    round = null;
+  }
+  return {
+    mode: v.mode === 'banque' ? 'banque' : 'tournant',
+    shoe,
+    chips,
+    bets: numRecord(v.bets, ids, 1),
+    ready: phase === 'mises' ? strList(v.ready).filter((id) => ids.includes(id)) : [],
+    phase,
+    round,
+    dealNo: int(v.dealNo, 0, 0),
+    streak: numRecord(v.streak, ids, 0),
+    bjRound: numRecord(v.bjRound, ids, 0),
+    dealerLost: v.dealerLost === true,
+    last: phase === 'bilan' ? normSummary(v.last, ids) : null,
+  };
+}
+
+function normRoom(v: unknown): PersistedRoom | null {
+  if (!isObj(v) || typeof v.code !== 'string' || !/^[A-Z]{4}$/.test(v.code)) return null;
+  if (v.role === 'guest') return { role: 'guest', code: v.code, names: strList(v.names).map((n) => n.slice(0, NAME_MAX)).slice(0, MAX_PLAYERS) };
+  if (v.role !== 'host') return null;
+  const lobby = Array.isArray(v.lobby)
+    ? v.lobby.filter(isObj).flatMap((e) => (typeof e.name === 'string' && typeof e.device === 'string' ? [{ name: e.name.slice(0, NAME_MAX), device: e.device }] : []))
+    : [];
+  let seats: Record<string, string> | null = null;
+  if (isObj(v.seats)) {
+    seats = {};
+    for (const [pid, d] of Object.entries(v.seats)) if (typeof d === 'string') seats[pid] = d;
+  }
+  return { role: 'host', code: v.code, mode: v.mode === 'banque' ? 'banque' : 'tournant', lobby: lobby.slice(0, MAX_PLAYERS), seats };
 }
 
 function normNight(v: unknown, i: number): Night | null {
@@ -115,6 +255,8 @@ export function normalizePersisted(raw: unknown): Persisted {
   const game = normalizeGame(raw.game);
   return {
     settings: raw.settings === undefined ? base.settings : normalizeSettings(raw.settings),
+    setupMode: SETUP_MODES.find((m) => m === raw.setupMode) ?? 'reel',
+    room: normRoom(raw.room),
     game,
     history: game ? history.slice(-HISTORY_MAX) : [],
     champ: { nights },

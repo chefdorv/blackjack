@@ -86,6 +86,15 @@ function baseRows(g: Game, s: Settings): Omit<ScoreRow, 'place' | 'score'>[] {
  * gains de défis − malus de recave + bonus du roi du blackjack attribué maintenant.
  */
 export function liveRanking(g: Game, s: Settings): ScoreRow[] {
+  const v = g.virtual;
+  if (v) {
+    // En virtuel, les tas sont connus à tout moment : le classement en direct est le vrai score.
+    const rows = baseRows(g, s).map((r) => {
+      const chips = v.chips[r.id] ?? 0;
+      return { ...r, chips, score: chips + r.unsettled + r.bjBonus };
+    });
+    return rankWithTies(rows, (r) => [r.score]);
+  }
   const rows = baseRows(g, s).map((r) => ({ ...r, score: r.bonus - r.malus + r.bjBonus }));
   return rankWithTies(rows, (r) => [r.score]);
 }

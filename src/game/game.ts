@@ -28,6 +28,7 @@ export function createGame(names: readonly string[], s: Settings, rng: Rng, now:
     finished: false,
     revealed: false,
     savedNightId: null,
+    virtual: null,
   };
   return fillChallenges(g, s, rng);
 }

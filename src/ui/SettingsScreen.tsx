@@ -1,6 +1,6 @@
 import { useState } from 'preact/hooks';
 import { isLevel, LEVELS } from '../game/defaults';
-import { addChallenge, BET_LIMIT, REWARD_LIMIT, SETTING_FIELDS, setBet, setNumber, updateChallenge } from '../game/settings';
+import { addChallenge, BET_LIMIT, DECKS_MAX, DECKS_MIN, REWARD_LIMIT, SETTING_FIELDS, setBet, setNumber, setTable, updateChallenge } from '../game/settings';
 import type { Level, Settings } from '../game/types';
 import { Stepper } from './common';
 import { IconTrash } from './icons';
@@ -52,6 +52,17 @@ function RewardInput({ id, value, onChange, label }: { id: string; value: number
         }}
       />
     </>
+  );
+}
+
+function Toggle({ id, label, checked, onChange }: { id: string; label: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div class="set-row">
+      <label class="set-label" for={id}>
+        {label}
+      </label>
+      <input id={id} class="switch" type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.currentTarget.checked)} />
+    </div>
   );
 }
 
@@ -127,11 +138,56 @@ export function SettingsScreen({
         ))}
       </section>
 
+      <section class="panel" aria-labelledby="table-title">
+        <h2 class="h3" id="table-title">
+          Table virtuelle
+        </h2>
+        <p class="small">Pour le mode « Tout dans l'app ». S'applique à la donne suivante ; changer le nombre de jeux remélange le sabot.</p>
+        <Stepper
+          id="set-decks"
+          label="Jeux de cartes dans le sabot"
+          value={s.table.decks}
+          min={DECKS_MIN}
+          max={DECKS_MAX}
+          onChange={(v) => {
+            if (v !== null) onSettings(setTable(s, { decks: v }));
+          }}
+        />
+        <Toggle id="set-h17" label="Le croupier tire sur 17 souple (As + 6)" checked={s.table.hitSoft17} onChange={(hitSoft17) => onSettings(setTable(s, { hitSoft17 }))} />
+        <Toggle
+          id="set-das"
+          label="Doubler après un split"
+          checked={s.table.doubleAfterSplit}
+          onChange={(doubleAfterSplit) => onSettings(setTable(s, { doubleAfterSplit }))}
+        />
+        <div class="set-row">
+          <label class="set-label" for="set-hole">
+            Carte cachée du croupier
+          </label>
+          <select
+            id="set-hole"
+            class="txt"
+            style="width:auto"
+            value={s.table.holeCard}
+            onChange={(e) => {
+              const v = e.currentTarget.value;
+              if (v === 'europeenne' || v === 'americaine') onSettings(setTable(s, { holeCard: v }));
+            }}
+          >
+            <option value="europeenne">À l'européenne</option>
+            <option value="americaine">À l'américaine</option>
+          </select>
+        </div>
+      </section>
+
       <section class="panel" aria-labelledby="ch-title">
         <h2 class="h3" id="ch-title">
           Défis ({s.challenges.length})
         </h2>
-        <p class="small">Modifiez le texte, le niveau (et donc la couleur) et le gain de chaque défi.</p>
+        <p class="small">
+          Modifiez le texte, le niveau (et donc la couleur) et le gain de chaque défi. En mode « Tout dans l'app », les défis d'origine sont validés
+          automatiquement ; un défi réécrit ou ajouté se réclame à la main.
+        </p>
         <ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:14px">
           {s.challenges.map((c, i) => (
             <li class="ch-edit" key={c.id}>
@@ -146,6 +202,7 @@ export function SettingsScreen({
               <label class="sr" for={'ch-tx-' + c.id}>
                 Texte du défi {i + 1}
               </label>
+              {c.auto && <span class="small auto-note">Validé automatiquement en mode « Tout dans l'app »</span>}
               <input
                 id={'ch-tx-' + c.id}
                 class="txt"

@@ -28,6 +28,11 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+        env:
+          # Jeu à plusieurs téléphones : canal temps réel du projet Supabase de Dooka (aucune table).
+          # Variables du dépôt : Settings > Secrets and variables > Actions > Variables.
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_KEY: ${{ vars.VITE_SUPABASE_KEY }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

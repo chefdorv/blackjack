@@ -5,19 +5,27 @@ import { defaultSettings } from './game/defaults';
 import { plural } from './game/format';
 import { addBlackjack, addRebuy, adjustPlayer, advance, createGame, endGame, finishSettling, setFinalCount, type Correctable } from './game/game';
 import { lastLabel, pushHistory } from './game/history';
-import type { Persisted, Tab } from './game/persist';
+import { applyIntent, type Intent, type IntentEvent } from './game/intents';
+import { moveItem } from './game/names';
+import type { Persisted, SetupMode, Tab } from './game/persist';
 import { buildNight, settleAll, settlePlayer } from './game/scoring';
 import { restoreChallenges, removeChallenge } from './game/settings';
 import type { ChallengeKind, Game, Settings } from './game/types';
-import { saveState, loadState } from './storage';
+import { createVirtualGame, finishVirtual, virtualSettings } from './game/virtual';
+import { cleanRoomCode, controlled, joinLobby, leaveLobby, newDeviceId, newRoomCode, seatsFor } from './net/protocol';
+import { transportKind } from './net/transport';
+import { useRoom } from './net/useRoom';
+import { deviceId, saveState, loadState } from './storage';
 import { ConfirmDialog, type ConfirmRequest } from './ui/common';
 import { ClaimDialog, DefisScreen } from './ui/DefisScreen';
-import { CountScreen, EndScreen, SettleScreen } from './ui/EndScreens';
+import { CountScreen, EndScreen, SettleScreen, VirtualSettleScreen } from './ui/EndScreens';
 import { CorrectSheet, GameScreen } from './ui/GameScreen';
 import { IconBook, IconCards, IconSliders, IconTable, IconTrophy, IconUndo } from './ui/icons';
 import { RankScreen, RulesScreen } from './ui/InfoScreens';
+import { GuestLobbyScreen, HostLobbyScreen, JoinScreen, RoomBar } from './ui/RoomScreens';
 import { SettingsScreen } from './ui/SettingsScreen';
 import { SetupScreen } from './ui/SetupScreen';
+import { TableScreen } from './ui/TableScreen';
 
 const rng = () => Math.random();
 
@@ -36,6 +44,15 @@ function reducedMotion(): boolean {
 
 function scrollTop() {
   window.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
+}
+
+/** Code de salle passé dans le lien partagé (?salle=ABCD). */
+function codeFromUrl(): string | null {
+  try {
+    return cleanRoomCode(new URLSearchParams(window.location.search).get('salle') ?? '');
+  } catch {
+    return null;
+  }
 }
 
 const NAV: Array<{ tab: Tab; label: string; icon: () => JSX.Element }> = [
@@ -57,6 +74,11 @@ export function App() {
   useEffect(() => {
     saveState(data);
   }, [data]);
+
+  const [device] = useState(() => deviceId(() => newDeviceId(rng)));
+  const [kind] = useState(transportKind);
+  const [joining, setJoining] = useState<string | null>(() => (kind && !data.room ? codeFromUrl() : null));
+  const kicked = useRef(new Set<string>());
 
   const [sheet, setSheet] = useState<string | null>(null);
   const [claimId, setClaimId] = useState<string | null>(null);
@@ -102,10 +124,17 @@ export function App() {
   };
 
   // ---- actions ----
-  const startGame = (names: string[]) => {
+  const startGame = (names: string[], mode: SetupMode = ref.current.setupMode) => {
     const d = ref.current;
-    const r = createGame(names, d.settings, rng);
-    setData({ ...d, game: r.game, history: [], tab: 'table', setupNames: names });
+    const r = mode === 'reel' ? createGame(names, d.settings, rng) : createVirtualGame(names, d.settings, mode, rng);
+    if (d.room?.role === 'host') {
+      // Revanche à plusieurs téléphones : mêmes joueurs, mêmes appareils.
+      setData({ ...d, game: r.game, history: [], tab: 'table', room: { ...d.room, seats: seatsFor(r.game, d.room.lobby) } });
+      setSheet(null);
+      scrollTop();
+      return;
+    }
+    setData({ ...d, game: r.game, history: [], tab: 'table', setupNames: names, setupMode: mode });
     setSheet(null);
     scrollTop();
     flash("C'est parti ! " + plural(r.game.current.length, 'défi') + ' sur la table' + r.empty.map((k) => ' · ' + EMPTY_TEXT[k]).join(''));
@@ -154,8 +183,150 @@ export function App() {
     if (JSON.stringify(next) !== JSON.stringify(d.game)) act(label, next);
   };
 
+  /** Mode virtuel : une demande de joueur, appliquée par le moteur (sans entrée d'annulation). */
+  const send = (intent: Intent) => {
+    const d = ref.current;
+    if (d.room?.role === 'guest') {
+      net.sendIntent(intent);
+      return;
+    }
+    if (!d.game?.virtual) return;
+    const r = applyIntent(d.game, d.settings, intent, rng);
+    if (r.game !== d.game) setData({ ...d, game: r.game });
+    r.events.forEach(announce);
+  };
+
+  const announce = (ev: IntentEvent) => {
+    const d = ref.current;
+    switch (ev.e) {
+      case 'croupier':
+        flash(ev.name + ' prend la main');
+        break;
+      case 'fin-de-manche':
+        scrollTop();
+        flash('Fin de la manche ' + ev.round + ' : le bilan');
+        break;
+      case 'manche': {
+        scrollTop();
+        const b = d.settings.bets[ev.round - 1] ?? d.settings.bets[d.settings.bets.length - 1];
+        flash('Manche ' + ev.round + ' : mises de ' + b.min + ' à ' + b.max);
+        break;
+      }
+      case 'fin-de-partie':
+        scrollTop();
+        flash('Partie terminée !');
+        break;
+      default:
+        // Résultats et défis validés s'affichent dans le bilan de la donne, après le jeu du croupier.
+        break;
+    }
+  };
+
+  const setRoom = (fn: (r: NonNullable<Persisted['room']>) => Persisted['room']) => {
+    const d = ref.current;
+    if (d.room) setData({ ...d, room: fn(d.room) });
+  };
+
+  const net = useRoom({
+    kind,
+    room: data.room,
+    device,
+    hostGame: data.room?.role === 'host' ? data.game : null,
+    hostSettings: data.settings,
+    onHello: (from, names) =>
+      setRoom((r) => (r.role === 'host' && !r.seats && !kicked.current.has(from) ? { ...r, lobby: joinLobby(r.lobby, from, names).lobby } : r)),
+    onLeave: (from) => setRoom((r) => (r.role === 'host' && !r.seats ? { ...r, lobby: leaveLobby(r.lobby, from) } : r)),
+    onIntent: (from, intent) => {
+      const d = ref.current;
+      if (d.room?.role !== 'host' || !d.room.seats || !d.game?.virtual) return;
+      const r = applyIntent(d.game, d.settings, intent, rng, controlled(d.room.seats, from));
+      if (r.game !== d.game) setData({ ...d, game: r.game });
+      r.events.forEach(announce);
+    },
+  });
+
+  // Invité : la table change chez l'hôte, on annonce les grands moments comme sur un seul appareil.
+  const seen = useRef<{ dealer: number; round: number; settling: boolean; finished: boolean } | null>(null);
+  const viewGame = net.view?.game ?? null;
+  useEffect(() => {
+    if (!viewGame) {
+      seen.current = null;
+      return;
+    }
+    const now = { dealer: viewGame.dealer, round: viewGame.round, settling: viewGame.settling !== null, finished: viewGame.finished };
+    const before = seen.current;
+    seen.current = now;
+    if (!before) return;
+    if (now.finished && !before.finished) {
+      scrollTop();
+      flash('Partie terminée !');
+    } else if (now.settling && !before.settling) {
+      scrollTop();
+      flash('Fin de la manche ' + viewGame.round + ' : le bilan');
+    } else if (now.round !== before.round) {
+      scrollTop();
+      flash('Manche ' + now.round);
+    } else if (now.dealer !== before.dealer && viewGame.virtual?.mode === 'tournant') flash(viewGame.players[now.dealer].name + ' prend la main');
+  }, [viewGame]);
+
+  const openRoom = () => {
+    const d = ref.current;
+    if (d.setupMode === 'reel') return;
+    const lobby = joinLobby([], device, d.setupNames).lobby;
+    kicked.current.clear();
+    setData({ ...d, room: { role: 'host', code: newRoomCode(rng), mode: d.setupMode, lobby, seats: null }, tab: 'table' });
+    scrollTop();
+  };
+
+  const startRoomGame = () => {
+    const d = ref.current;
+    if (d.room?.role !== 'host') return;
+    const r = createVirtualGame(
+      d.room.lobby.map((e) => e.name),
+      d.settings,
+      d.room.mode,
+      rng,
+    );
+    setData({ ...d, game: r.game, history: [], tab: 'table', room: { ...d.room, seats: seatsFor(r.game, d.room.lobby) } });
+    scrollTop();
+    flash("C'est parti ! " + plural(r.game.current.length, 'défi') + ' sur la table');
+  };
+
+  const closeRoom = () =>
+    ask(
+      ref.current.room?.role === 'host' && ref.current.room.seats
+        ? 'Fermer la salle ? La partie continue sur ce seul téléphone.'
+        : 'Fermer la salle ?',
+      () => {
+        net.close(true);
+        setData({ ...ref.current, room: null });
+      },
+    );
+
+  const leaveRoom = () =>
+    ask('Quitter la salle ?', () => {
+      net.close(true);
+      setData({ ...ref.current, room: null, tab: 'table' });
+    });
+
+  /** L'hôte reprend la place d'un joueur dont le téléphone ne répond plus. */
+  const takeOver = (pid: string) =>
+    setRoom((r) => (r.role === 'host' && r.seats ? { ...r, seats: { ...r.seats, [pid]: device } } : r));
+
   const claim = (cid: string, pid: string) => {
     setClaimId(null);
+    if (ref.current.room?.role === 'guest') {
+      send({ t: 'claim', cid, pid });
+      return;
+    }
+    if (ref.current.game?.virtual) {
+      const before = ref.current.game;
+      send({ t: 'claim', cid, pid });
+      const after = ref.current.game;
+      const last = after?.claims[after.claims.length - 1];
+      if (after !== before && last) flash(last.name + ' remporte +' + last.reward + ' jetons');
+      return;
+    }
     setVanishing(cid);
     window.clearTimeout(vanishTimer.current);
     vanishTimer.current = window.setTimeout(
@@ -209,6 +380,12 @@ export function App() {
     ask('Terminer la partie maintenant et passer au décompte ?', () => {
       const d = ref.current;
       if (!d.game) return;
+      if (d.game.virtual) {
+        setData({ ...d, game: finishVirtual(d.game), tab: 'table' });
+        scrollTop();
+        flash('Partie terminée !');
+        return;
+      }
       act('Fin de partie', endGame(d.game), { tab: 'table' });
       scrollTop();
       flash('Place au décompte !');
@@ -227,6 +404,13 @@ export function App() {
 
   const toSetup = () => {
     const d = ref.current;
+    if (d.room?.role === 'host') {
+      // À plusieurs téléphones : retour à la salle d'attente, les invités restent connectés.
+      setData({ ...d, game: null, history: [], tab: 'table', room: { ...d.room, seats: null } });
+      setSheet(null);
+      scrollTop();
+      return;
+    }
     setData({ ...d, game: null, history: [], tab: 'table', setupNames: d.game ? d.game.players.map((p) => p.name) : d.setupNames });
     setSheet(null);
     scrollTop();
@@ -251,20 +435,102 @@ export function App() {
 
   const updateSettings = (next: Settings) => {
     const d = ref.current;
-    const game = d.game && !d.game.finished ? fillChallenges(d.game, next, rng).game : d.game;
+    let game = d.game && !d.game.finished ? fillChallenges(d.game, virtualSettings(d.game, next), rng).game : d.game;
+    if (game?.virtual && !game.finished) game = { ...game, flipped: game.current.slice() };
     setData({ ...d, settings: next, game });
   };
 
   // ---- rendu ----
-  const { game: g, settings: s, tab } = data;
+  const { tab, room } = data;
+  const guest = room?.role === 'guest';
+  const hosting = room?.role === 'host';
+  // Un invité affiche la table reçue de l'hôte, avec les réglages de l'hôte.
+  const g = guest ? (net.closedByHost ? null : (net.view?.game ?? null)) : data.game;
+  const settingsRaw = guest ? (net.view?.settings ?? data.settings) : data.settings;
+  // En banque automatique, pas de défis croupier : tous les écrans voient 0 emplacement croupier.
+  const s = virtualSettings(g, settingsRaw);
+  const seats = guest ? (net.view?.seats ?? null) : hosting ? room.seats : null;
+  const controls = seats ? controlled(seats, device) : null;
   const unflipped = g ? unflippedCount(g, s) : 0;
-  const undoLabel = g ? lastLabel(data.history) : null;
+  const undoLabel = g && !room ? lastLabel(data.history) : null;
+  const pidOffline = (pid: string) => {
+    const d = seats?.[pid];
+    return d !== undefined && net.offline(d);
+  };
   const sheetPlayer = g && sheet ? g.players.find((p) => p.id === sheet) : undefined;
   const claimCh = g && claimId ? s.challenges.find((c) => c.id === claimId) : undefined;
 
   let screen: JSX.Element;
-  if (tab === 'table') {
-    if (!g) screen = <SetupScreen names={data.setupNames} settings={s} onNames={(setupNames) => setData({ ...ref.current, setupNames })} onStart={startGame} />;
+  if (tab === 'table' && joining !== null && !room)
+    screen = (
+      <JoinScreen
+        initialCode={joining}
+        initialNames={data.room === null && data.setupNames.length === 1 ? data.setupNames : []}
+        cleanCode={cleanRoomCode}
+        onJoin={(code, names) => {
+          setJoining(null);
+          // On retient le prénom pour la prochaine fois.
+          setData({ ...ref.current, room: { role: 'guest', code, names }, tab: 'table', setupNames: names });
+        }}
+        onCancel={() => setJoining(null)}
+      />
+    );
+  else if (tab === 'table' && room?.role === 'guest' && !g)
+    screen = (
+      <GuestLobbyScreen
+        code={room.code}
+        names={room.names}
+        lobby={net.lobby}
+        device={device}
+        status={net.status}
+        hostOffline={net.hostOffline}
+        closed={net.closedByHost}
+        onLeave={leaveRoom}
+      />
+    );
+  else if (tab === 'table' && room?.role === 'host' && !room.seats)
+    screen = (
+      <HostLobbyScreen
+        code={room.code}
+        mode={room.mode}
+        lobby={room.lobby}
+        device={device}
+        status={net.status}
+        offline={net.offline}
+        onAdd={(name) =>
+          setRoom((r) =>
+            r.role === 'host'
+              ? { ...r, lobby: joinLobby(r.lobby, device, r.lobby.filter((e) => e.device === device).map((e) => e.name).concat(name)).lobby }
+              : r,
+          )
+        }
+        onRemove={(i) =>
+          setRoom((r) => {
+            if (r.role !== 'host') return r;
+            const e = r.lobby[i];
+            if (e && e.device !== device) kicked.current.add(e.device);
+            return { ...r, lobby: r.lobby.filter((_, j) => j !== i) };
+          })
+        }
+        onMove={(i, delta) => setRoom((r) => (r.role === 'host' ? { ...r, lobby: moveItem(r.lobby, i, delta) } : r))}
+        onStart={startRoomGame}
+        onCancel={closeRoom}
+      />
+    );
+  else if (tab === 'table') {
+    if (!g)
+      screen = (
+        <SetupScreen
+          names={data.setupNames}
+          settings={s}
+          mode={data.setupMode}
+          onMode={(setupMode) => setData({ ...ref.current, setupMode })}
+          onNames={(setupNames) => setData({ ...ref.current, setupNames })}
+          onStart={(names) => startGame(names)}
+          onHost={kind ? openRoom : undefined}
+          onJoin={kind ? () => setJoining(codeFromUrl() ?? '') : undefined}
+        />
+      );
     else if (g.finished && g.revealed)
       screen = (
         <EndScreen
@@ -276,8 +542,11 @@ export function App() {
             quiet((x) => ({ ...x, revealed: false }));
             scrollTop();
           }}
-          onRematch={() => ask('Relancer une partie avec les mêmes joueurs ?', () => startGame(g.players.map((p) => p.name)))}
-          onNewGame={() => ask('Revenir à la création de partie ?', toSetup)}
+          onRematch={() =>
+            ask('Relancer une partie avec les mêmes joueurs ?', () => startGame(g.players.map((p) => p.name), g.virtual ? g.virtual.mode : 'reel'))
+          }
+          onNewGame={() => ask(hosting ? 'Revenir à la salle d’attente ?' : 'Revenir à la création de partie ?', toSetup)}
+          guest={guest}
         />
       );
     else if (g.finished)
@@ -290,6 +559,22 @@ export function App() {
             quiet((x) => ({ ...x, revealed: true }));
             window.scrollTo(0, 0);
           }}
+        />
+      );
+    else if (g.virtual && g.settling) screen = <VirtualSettleScreen game={g} settings={s} onNext={() => send({ t: 'manche' })} />;
+    else if (g.virtual)
+      screen = (
+        <TableScreen
+          game={g}
+          settings={s}
+          controls={controls}
+          offline={seats ? pidOffline : undefined}
+          onTakeOver={hosting ? takeOver : undefined}
+          onBet={(pid, amount) => send({ t: 'bet', pid, amount })}
+          onReady={(pids, ready) => send({ t: 'ready', pids, ready })}
+          onPlay={(pid, action) => send({ t: 'play', pid, action })}
+          onNext={() => send({ t: 'next' })}
+          onClaim={setClaimId}
         />
       );
     else if (g.settling) screen = <SettleScreen game={g} settings={s} onSettle={settleOne} onSettleAll={settleEveryone} onNext={endSettling} />;
@@ -323,7 +608,7 @@ export function App() {
         game={g}
         settings={s}
         champ={data.champ}
-        onEndNow={endNow}
+        onEndNow={guest ? undefined : endNow}
         onDeleteNight={(id) =>
           ask('Supprimer cette soirée du championnat ?', () => {
             const d = ref.current;
@@ -334,6 +619,19 @@ export function App() {
       />
     );
   else if (tab === 'rules') screen = <RulesScreen settings={s} />;
+  else if (guest)
+    screen = (
+      <section class="panel" aria-labelledby="guest-settings">
+        <div class="k">Réglages</div>
+        <h1 class="h1" id="guest-settings">
+          La maison
+        </h1>
+        <p class="muted">Pendant une partie à plusieurs téléphones, les règles, les mises et les défis sont ceux du téléphone hôte.</p>
+        <button type="button" class="btn danger" onClick={leaveRoom}>
+          Quitter la salle {room.code}
+        </button>
+      </section>
+    );
   else
     screen = (
       <SettingsScreen
@@ -386,6 +684,16 @@ export function App() {
       </header>
 
       <main class="main" id="contenu">
+        {room && g && tab === 'table' && (
+          <RoomBar
+            code={room.code}
+            status={net.status}
+            hostOffline={net.hostOffline}
+            offlineNames={g.players.filter((p) => pidOffline(p.id)).map((p) => p.name)}
+            label={hosting ? 'Fermer la salle' : 'Quitter'}
+            onClose={hosting ? closeRoom : leaveRoom}
+          />
+        )}
         {screen}
       </main>
 

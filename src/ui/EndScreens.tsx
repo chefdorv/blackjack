@@ -1,5 +1,5 @@
 // Fin de manche (règlement), décompte des jetons et podium.
-import { plural, signed } from '../game/format';
+import { num, plural, signed } from '../game/format';
 import { allCounted } from '../game/game';
 import { blackjackKings, finalRanking, pending, type ScoreRow } from '../game/scoring';
 import type { Championship, Game, Settings } from '../game/types';
@@ -65,6 +65,43 @@ export function SettleScreen({
       </p>
       <button type="button" class="btn big gold" onClick={onNext}>
         {last ? 'Passer au décompte final' : 'Lancer la manche ' + (g.round + 1)}
+      </button>
+    </section>
+  );
+}
+
+/** Fin de manche en mode virtuel : rien à régler, les gains de défis sont déjà sur les tas. */
+export function VirtualSettleScreen({ game: g, settings: s, onNext }: { game: Game; settings: Settings; onNext: () => void }) {
+  const last = g.round >= s.rounds;
+  const v = g.virtual;
+  const kings = blackjackKings(g.players).ids;
+  return (
+    <section class="panel" aria-labelledby="settle-title">
+      <div class="k">Fin de la manche {g.settling?.round ?? g.round}</div>
+      <h1 class="h1" id="settle-title">
+        Le bilan
+      </h1>
+      <p class="muted">
+        Les gains des défis sont déjà sur les tas. Les malus de recave seront retirés au classement final
+        {kings.length ? ', le bonus du roi du blackjack ajouté' : ''}.
+      </p>
+      <div>
+        {g.players.map((p) => (
+          <div class="set-row" key={p.id}>
+            <div class="grow">
+              <div class="set-label">{p.name}</div>
+              <div class="small">
+                {['défis +' + p.bonus, p.rebuys ? plural(p.rebuys, 'recave') + ' (−' + p.rebuys * s.rebuyMalus + ')' : '', plural(p.bj, 'blackjack')]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </div>
+            </div>
+            <span class="settle-amt">{v?.chips[p.id] ?? 0}</span>
+          </div>
+        ))}
+      </div>
+      <button type="button" class="btn big gold" onClick={onNext}>
+        {last ? 'Voir le podium' : 'Lancer la manche ' + (g.round + 1)}
       </button>
     </section>
   );
@@ -152,14 +189,14 @@ export function RankList({ rows, detail }: { rows: Array<{ id: string; place: nu
             <div class="rank-name">{r.name}</div>
             <div class="rank-sub">{detail(r.id)}</div>
           </div>
-          <span class="rank-score">{r.score}</span>
+          <span class="rank-score">{num(r.score)}</span>
         </li>
       ))}
     </ol>
   );
 }
 
-function FinalTable({ rows }: { rows: ScoreRow[] }) {
+function FinalTable({ rows, virtual }: { rows: ScoreRow[]; virtual: boolean }) {
   return (
     <div class="tbl-wrap">
       <table class="tbl">
@@ -172,7 +209,7 @@ function FinalTable({ rows }: { rows: ScoreRow[] }) {
             </th>
             <th scope="col">Joueur</th>
             <th scope="col">Jetons</th>
-            <th scope="col">Non réglé</th>
+            <th scope="col">{virtual ? 'Malus' : 'Non réglé'}</th>
             <th scope="col">Bonus</th>
             <th scope="col">BJ</th>
             <th scope="col">Total</th>
@@ -189,7 +226,7 @@ function FinalTable({ rows }: { rows: ScoreRow[] }) {
               <td class={r.unsettled > 0 ? 'pos' : r.unsettled < 0 ? 'neg' : ''}>{signed(r.unsettled)}</td>
               <td>{r.bjBonus ? '+' + r.bjBonus : '0'}</td>
               <td>{r.bj}</td>
-              <td class="t-total">{r.score}</td>
+              <td class="t-total">{num(r.score)}</td>
             </tr>
           ))}
         </tbody>
@@ -206,6 +243,7 @@ export function EndScreen({
   onEdit,
   onRematch,
   onNewGame,
+  guest = false,
 }: {
   game: Game;
   settings: Settings;
@@ -214,6 +252,8 @@ export function EndScreen({
   onEdit: () => void;
   onRematch: () => void;
   onNewGame: () => void;
+  /** Invité d'une partie à plusieurs téléphones : l'hôte enregistre et relance. */
+  guest?: boolean;
 }) {
   const rows = finalRanking(g, s);
   const saved = g.savedNightId ? champ.nights.find((n) => n.id === g.savedNightId) : undefined;
@@ -239,7 +279,7 @@ export function EndScreen({
               </span>
             )}
             <span class="pod-name">{r.name}</span>
-            <span class="pod-score">{r.score} pts</span>
+            <span class="pod-score">{num(r.score)} pts</span>
             <div class="pod-block" aria-label={r.place + (r.place === 1 ? 're' : 'e') + ' place'}>
               {r.place}
             </div>
@@ -248,30 +288,37 @@ export function EndScreen({
       </section>
       <section class="panel">
         <h2 class="h2">Décompte final</h2>
-        <p class="small">Score = jetons comptés + ce qui n'a pas été réglé en fin de manche + bonus du roi du blackjack.</p>
-        <FinalTable rows={rows} />
-        {!saved && (
+        <p class="small">
+          {g.virtual
+            ? 'Score = jetons en fin de partie − malus de recave + bonus du roi du blackjack.'
+            : "Score = jetons comptés + ce qui n'a pas été réglé en fin de manche + bonus du roi du blackjack."}
+        </p>
+        <FinalTable rows={rows} virtual={g.virtual !== null} />
+        {guest && <p class="muted">Le téléphone hôte enregistre la soirée au championnat et peut lancer la revanche.</p>}
+        {!guest && !saved && (
           <button type="button" class="btn big gold" onClick={onSave}>
             Enregistrer au championnat
           </button>
         )}
-        {saved && !stale && <p class="muted">Soirée enregistrée au championnat.</p>}
-        {saved && stale && (
+        {!guest && saved && !stale && <p class="muted">Soirée enregistrée au championnat.</p>}
+        {!guest && saved && stale && (
           <button type="button" class="btn big gold" onClick={onSave}>
             Mettre à jour la soirée au championnat
           </button>
         )}
-        <button type="button" class="btn ghost" onClick={onEdit}>
-          Modifier le décompte
-        </button>
-        <div class="grid2">
+        {!g.virtual && (
+          <button type="button" class="btn ghost" onClick={onEdit}>
+            Modifier le décompte
+          </button>
+        )}
+        {!guest && <div class="grid2">
           <button type="button" class="btn" onClick={onRematch}>
             Revanche
           </button>
           <button type="button" class="btn" onClick={onNewGame}>
             Nouvelle partie
           </button>
-        </div>
+        </div>}
       </section>
     </>
   );

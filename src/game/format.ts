@@ -5,6 +5,11 @@ export function signed(n: number): string {
   return '0';
 }
 
+/** Nombre avec un vrai signe moins s'il est négatif, sans « + » s'il est positif (scores). */
+export function num(n: number): string {
+  return n < 0 ? '−' + Math.abs(n) : String(n);
+}
+
 export function plural(n: number, singular: string, pluralForm: string = singular + 's'): string {
   return n + ' ' + (Math.abs(n) > 1 ? pluralForm : singular);
 }

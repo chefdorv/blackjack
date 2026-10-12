@@ -304,7 +304,7 @@ try {
   });
   await step('règles avec les valeurs des réglages', async () => {
     await nav('Règles');
-    const txt = await page.locator('.rules').innerText();
+    const txt = await page.locator('.rules').first().innerText();
     check(txt.includes('pendant 1 donne,') && txt.includes('1 manche par partie'), 'règles non dynamiques');
     check(txt.includes('2 à 10 jetons en manche 1'), 'mises dans les règles');
     check((await page.locator('.lv-head').count()) === 5, '5 niveaux');

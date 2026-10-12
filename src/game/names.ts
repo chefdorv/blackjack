@@ -29,6 +29,11 @@ export function moveItem<T>(list: readonly T[], index: number, delta: number): T
   return out;
 }
 
-export function canStart(list: readonly string[]): boolean {
-  return list.length >= MIN_PLAYERS && list.length <= MAX_PLAYERS;
+/** Avec de vraies cartes il faut 3 joueurs ; en virtuel, 2 avec croupier tournant, 1 contre la banque. */
+export function minPlayers(mode: 'reel' | 'tournant' | 'banque'): number {
+  return mode === 'reel' ? MIN_PLAYERS : mode === 'tournant' ? 2 : 1;
+}
+
+export function canStart(list: readonly string[], min: number = MIN_PLAYERS): boolean {
+  return list.length >= min && list.length <= MAX_PLAYERS;
 }

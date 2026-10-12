@@ -7,7 +7,7 @@ import type { Championship, Game, Settings } from '../game/types';
 import { RankList } from './EndScreens';
 
 function liveDetail(r: ScoreRow): string {
-  const parts = ['défis +' + r.bonus];
+  const parts = r.chips !== null ? [r.chips + ' jetons', 'défis +' + r.bonus] : ['défis +' + r.bonus];
   if (r.malus) parts.push('−' + r.malus + ' (' + plural(r.rebuys, 'recave') + ')');
   if (r.bjBonus) parts.push('+' + r.bjBonus + ' roi du blackjack');
   parts.push(plural(r.bj, 'blackjack'));
@@ -34,7 +34,8 @@ export function RankScreen({
   game: Game | null;
   settings: Settings;
   champ: Championship;
-  onEndNow: () => void;
+  /** Absent pour un invité : seul l'hôte peut arrêter la partie. */
+  onEndNow?: () => void;
   onDeleteNight: (id: string) => void;
 }) {
   const fin = g?.finished === true;
@@ -52,7 +53,9 @@ export function RankScreen({
             Classement
           </h1>
           <p class="small">
-            {fin
+            {g.virtual
+              ? 'Score = jetons sur le tas − malus de recave + bonus du roi du blackjack (attribué à qui en a fait le plus jusqu’ici).'
+              : fin
               ? "Score = jetons comptés + ce qui n'a pas été réglé en fin de manche + bonus du roi du blackjack."
               : "En cours de partie, on ne compte pas les jetons : le classement montre les gains des défis − les malus de recave (réglés ou non), plus le bonus du roi du blackjack qu'on attribuerait maintenant. Le vrai classement se fait au décompte final."}
           </p>
@@ -63,7 +66,7 @@ export function RankScreen({
               return r ? (fin ? finalDetail(r) : liveDetail(r)) : '';
             }}
           />
-          {!fin && (
+          {!fin && onEndNow && (
             <button type="button" class="btn danger" onClick={onEndNow}>
               Terminer la partie maintenant
             </button>
@@ -125,6 +128,27 @@ export function RankScreen({
   );
 }
 
+function virtualRules(s: Settings): Array<[string, string]> {
+  const t = s.table;
+  return [
+    ['Le sabot', 'contient ' + plural(t.decks, 'jeu', 'jeux') + ' de 52 cartes, remélangé quand les trois quarts sont distribués.'],
+    [
+      'Le croupier',
+      'est joué par l’application : il tire jusqu’à 16 et reste à 17' + (t.hitSoft17 ? ', mais tire sur 17 souple (As + 6)' : ', y compris sur 17 souple (As + 6)') + '.',
+    ],
+    t.holeCard === 'europeenne'
+      ? ['Carte cachée à l’européenne :', 'le croupier ne prend sa seconde carte qu’après les joueurs. S’il fait blackjack, il gagne aussi les mises doublées ou splittées. Un blackjack joueur fait alors égalité.']
+      : ['Carte cachée à l’américaine :', 'le croupier prend sa seconde carte tout de suite et vérifie son blackjack : s’il l’a, la donne s’arrête et chacun ne perd que sa mise de départ.'],
+    ['Doubler', 'sur ses deux premières cartes : la mise double et on reçoit une seule carte.' + (t.doubleAfterSplit ? ' Permis aussi après un split.' : ' Pas après un split.')],
+    ['Splitter', 'une paire (deux cartes de même valeur) : une seule fois par main. Deux As splittés reçoivent une seule carte chacun, et 21 n’y vaut pas blackjack.'],
+    ['Croupier tournant :', 'le croupier du moment ne mise pas ; il encaisse les mises perdues et paie les gains avec son propre tas.'],
+    ['Banque automatique :', 'l’application tient la banque ; une manche dure autant de donnes que le nombre de joueurs × ' + plural(s.deals, 'donne') + '.'],
+    ['Recave automatique.', 'Un tas qui tombe à 0 (ou un croupier qui ne peut pas payer toute la table) reprend ' + s.rebuyChips + ' jetons, avec un malus de ' + s.rebuyMalus + ' au classement.'],
+    ['Défis.', 'L’application voit toutes les mains et valide les défis toute seule ; les gains vont directement sur le tas. Les défis réécrits ou ajoutés dans les réglages se réclament à la main.'],
+    ['Classement final :', 'jetons en fin de partie − malus de recave + ' + s.bonusBJ + ' au roi du blackjack.'],
+  ];
+}
+
 export function RulesScreen({ settings: s }: { settings: Settings }) {
   const bets = Array.from({ length: s.rounds }, (_, i) => {
     const b = betFor(s, i + 1);
@@ -168,6 +192,19 @@ export function RulesScreen({ settings: s }: { settings: Settings }) {
         </h1>
         <ul class="rules">
           {rules.map(([title, text]) => (
+            <li key={title}>
+              <b>{title}</b> {text}
+            </li>
+          ))}
+        </ul>
+      </section>
+      <section class="panel" aria-labelledby="rules-virtual">
+        <div class="k">Cartes et jetons virtuels</div>
+        <h2 class="h2" id="rules-virtual">
+          Tout dans l’app
+        </h2>
+        <ul class="rules">
+          {virtualRules(s).map(([title, text]) => (
             <li key={title}>
               <b>{title}</b> {text}
             </li>
