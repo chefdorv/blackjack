@@ -108,9 +108,23 @@ Après une nouvelle mise en ligne, l'application se met à jour à la visite sui
 
 ## Jouer à plusieurs téléphones
 
-Un téléphone ouvre une salle (code de 4 lettres) et fait tourner la partie ; les autres
-la rejoignent avec le code ou le lien partagé, misent et jouent leurs mains depuis leur
-téléphone. Les messages passent par Supabase Realtime (diffusion, sans table ni compte),
+Sur l'écran de création : **Tout dans l'app**, puis **Sur quels téléphones ?** →
+**Chacun sur le sien**, puis **Ouvrir la salle**. Ce téléphone (l'hôte) ouvre une salle
+(code de 4 lettres) et fait tourner la partie ; les autres la rejoignent avec le code
+(**Rejoindre une partie**, en haut de l'écran de création) ou le lien partagé, misent et
+jouent leurs mains depuis leur téléphone. Le nombre de manches et de donnes se règle dès
+l'écran de création, et encore dans la salle d'attente.
+
+- **Arrivée en cours de partie** : le téléphone regarde la table et sait quand il jouera ;
+  ses joueurs s'assoient au début de la manche suivante (à la partie suivante si c'était
+  la dernière manche). L'hôte les voit dans un bandeau « Arrivés en cours de partie ».
+- **Téléphone perdu ou éteint** : si un joueur revient sur un autre téléphone avec le même
+  prénom, l'hôte touche **Donner la place de …** sur son siège (le bouton apparaît quand
+  l'ancien téléphone ne répond plus depuis 12 secondes) et choisit le nouveau téléphone,
+  ou le sien pour jouer à sa place. Jetons, défis et main en cours sont conservés.
+- **Nouvelle partie** : l'hôte revient à la salle d'attente, et tous les téléphones avec lui.
+
+Les messages passent par Supabase Realtime (diffusion, sans table ni compte),
 sur le projet Supabase de Dooka : les salles sont des canaux `bj-ABCD`, rien n'est écrit
 dans sa base. Les options n'apparaissent que si ces deux valeurs sont connues au build :
 
@@ -174,7 +188,7 @@ l'onglet Règles.
   Une manche = tout le monde a été croupier une fois. 3 manches.
 - Le croupier tire jusqu'à 16 et reste à 17. Blackjack payé 3 contre 2, arrondi au
   jeton supérieur. Pas d'assurance, un seul split par main.
-- Mises : 2 à 10 (manche 1), 4 à 20 (manche 2), 6 à 30 (manche 3).
+- Mises : 5 à 10 (manche 1), 5 à 20 (manche 2), 6 à 30 (manche 3).
 - Recave : 30 jetons, malus de 50.
 - 3 défis joueurs et 1 défi croupier toujours en jeu ; un défi ne sort qu'une fois.
 - Fin de manche : chacun prend ses gains de défis ou rembourse ses malus ; ce qui

@@ -11,8 +11,20 @@ import type { Persisted, SetupMode, Tab } from './game/persist';
 import { buildNight, settleAll, settlePlayer } from './game/scoring';
 import { restoreChallenges, removeChallenge } from './game/settings';
 import type { ChallengeKind, Game, Settings } from './game/types';
-import { createVirtualGame, finishVirtual, virtualSettings } from './game/virtual';
-import { cleanRoomCode, controlled, joinLobby, leaveLobby, newDeviceId, newRoomCode, seatsFor } from './net/protocol';
+import { addPlayers, createVirtualGame, finishVirtual, virtualSettings } from './game/virtual';
+import {
+  cleanRoomCode,
+  controlled,
+  dropGuest,
+  joinLobby,
+  lateJoiners,
+  leaveLobby,
+  mergeGuests,
+  newDeviceId,
+  newRoomCode,
+  noteGuest,
+  seatsFor,
+} from './net/protocol';
 import { transportKind } from './net/transport';
 import { useRoom } from './net/useRoom';
 import { deviceId, saveState, loadState } from './storage';
@@ -22,7 +34,7 @@ import { CountScreen, EndScreen, SettleScreen, VirtualSettleScreen } from './ui/
 import { CorrectSheet, GameScreen } from './ui/GameScreen';
 import { IconBook, IconCards, IconSliders, IconTable, IconTrophy, IconUndo } from './ui/icons';
 import { RankScreen, RulesScreen } from './ui/InfoScreens';
-import { GuestLobbyScreen, HostLobbyScreen, JoinScreen, RoomBar } from './ui/RoomScreens';
+import { GuestLobbyScreen, GuestsBanner, HostLobbyScreen, JoinScreen, ReassignDialog, RoomBar, SpectatorNote } from './ui/RoomScreens';
 import { SettingsScreen } from './ui/SettingsScreen';
 import { SetupScreen } from './ui/SetupScreen';
 import { TableScreen } from './ui/TableScreen';
@@ -81,6 +93,8 @@ export function App() {
   const kicked = useRef(new Set<string>());
 
   const [sheet, setSheet] = useState<string | null>(null);
+  const [reassign, setReassign] = useState<string | null>(null);
+  const [multi, setMulti] = useState(false);
   const [claimId, setClaimId] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
   const [vanishing, setVanishing] = useState<string | null>(null);
@@ -128,10 +142,8 @@ export function App() {
     const d = ref.current;
     const r = mode === 'reel' ? createGame(names, d.settings, rng) : createVirtualGame(names, d.settings, mode, rng);
     if (d.room?.role === 'host') {
-      // Revanche à plusieurs téléphones : mêmes joueurs, mêmes appareils.
-      setData({ ...d, game: r.game, history: [], tab: 'table', room: { ...d.room, seats: seatsFor(r.game, d.room.lobby) } });
+      startRoomGame();
       setSheet(null);
-      scrollTop();
       return;
     }
     setData({ ...d, game: r.game, history: [], tab: 'table', setupNames: names, setupMode: mode });
@@ -190,9 +202,35 @@ export function App() {
       net.sendIntent(intent);
       return;
     }
+    hostApply(intent, null);
+  };
+
+  /**
+   * Applique une demande (de ce téléphone : allowed = null, ou d'un invité : ses joueurs).
+   * Au début d'une manche, les téléphones arrivés en cours de partie s'assoient.
+   */
+  const hostApply = (intent: Intent, allowed: string[] | null) => {
+    const d = ref.current;
     if (!d.game?.virtual) return;
-    const r = applyIntent(d.game, d.settings, intent, rng);
-    if (r.game !== d.game) setData({ ...d, game: r.game });
+    const r = applyIntent(d.game, d.settings, intent, rng, allowed);
+    let game = r.game;
+    let room = d.room;
+    if (room?.role === 'host' && room.seats && r.events.some((ev) => ev.e === 'manche')) {
+      const late = lateJoiners(game, room.guests, (dev) => dev === device || !net.offline(dev));
+      if (late.length) {
+        const before = game.players.length;
+        game = addPlayers(game, d.settings, late.map((e) => e.name));
+        const seats = { ...room.seats };
+        for (const p of game.players.slice(before)) {
+          const e = late.find((x) => x.name.toLocaleLowerCase('fr-FR') === p.name.toLocaleLowerCase('fr-FR'));
+          if (e) seats[p.id] = e.device;
+        }
+        const joined = new Set(late.map((e) => e.device));
+        room = { ...room, seats, lobby: mergeGuests(room.lobby, late), guests: room.guests.filter((e) => !joined.has(e.device)) };
+        flash(late.map((e) => e.name).join(', ') + ' rejoin' + (late.length > 1 ? 'ent' : 't') + ' la table');
+      }
+    }
+    if (game !== d.game || room !== d.room) setData({ ...d, game, room });
     r.events.forEach(announce);
   };
 
@@ -234,14 +272,23 @@ export function App() {
     hostGame: data.room?.role === 'host' ? data.game : null,
     hostSettings: data.settings,
     onHello: (from, names) =>
-      setRoom((r) => (r.role === 'host' && !r.seats && !kicked.current.has(from) ? { ...r, lobby: joinLobby(r.lobby, from, names).lobby } : r)),
-    onLeave: (from) => setRoom((r) => (r.role === 'host' && !r.seats ? { ...r, lobby: leaveLobby(r.lobby, from) } : r)),
+      setRoom((r) => {
+        if (r.role !== 'host' || kicked.current.has(from)) return r;
+        if (!r.seats) return { ...r, lobby: joinLobby(r.lobby, from, names).lobby };
+        // Partie lancée : un joueur déjà assis revient, ou un nouveau téléphone attend la manche suivante.
+        if (controlled(r.seats, from).length > 0) return r;
+        const guests = noteGuest(r.guests, from, names);
+        return JSON.stringify(guests) === JSON.stringify(r.guests) ? r : { ...r, guests };
+      }),
+    onLeave: (from) =>
+      setRoom((r) => {
+        if (r.role !== 'host') return r;
+        return r.seats ? { ...r, guests: dropGuest(r.guests, from) } : { ...r, lobby: leaveLobby(r.lobby, from) };
+      }),
     onIntent: (from, intent) => {
       const d = ref.current;
-      if (d.room?.role !== 'host' || !d.room.seats || !d.game?.virtual) return;
-      const r = applyIntent(d.game, d.settings, intent, rng, controlled(d.room.seats, from));
-      if (r.game !== d.game) setData({ ...d, game: r.game });
-      r.events.forEach(announce);
+      if (d.room?.role !== 'host' || !d.room.seats) return;
+      hostApply(intent, controlled(d.room.seats, from));
     },
   });
 
@@ -274,20 +321,22 @@ export function App() {
     if (d.setupMode === 'reel') return;
     const lobby = joinLobby([], device, d.setupNames).lobby;
     kicked.current.clear();
-    setData({ ...d, room: { role: 'host', code: newRoomCode(rng), mode: d.setupMode, lobby, seats: null }, tab: 'table' });
+    setData({ ...d, room: { role: 'host', code: newRoomCode(rng), mode: d.setupMode, lobby, seats: null, guests: [] }, tab: 'table' });
     scrollTop();
   };
 
   const startRoomGame = () => {
     const d = ref.current;
     if (d.room?.role !== 'host') return;
+    // Revanche : ceux qui attendaient la fin de la partie s'assoient aussi.
+    const lobby = mergeGuests(d.room.lobby, d.room.guests.filter((e) => !net.offline(e.device)));
     const r = createVirtualGame(
-      d.room.lobby.map((e) => e.name),
+      lobby.map((e) => e.name),
       d.settings,
       d.room.mode,
       rng,
     );
-    setData({ ...d, game: r.game, history: [], tab: 'table', room: { ...d.room, seats: seatsFor(r.game, d.room.lobby) } });
+    setData({ ...d, game: r.game, history: [], tab: 'table', room: { ...d.room, lobby, guests: [], seats: seatsFor(r.game, lobby) } });
     scrollTop();
     flash("C'est parti ! " + plural(r.game.current.length, 'défi') + ' sur la table');
   };
@@ -309,9 +358,17 @@ export function App() {
       setData({ ...ref.current, room: null, tab: 'table' });
     });
 
-  /** L'hôte reprend la place d'un joueur dont le téléphone ne répond plus. */
-  const takeOver = (pid: string) =>
-    setRoom((r) => (r.role === 'host' && r.seats ? { ...r, seats: { ...r.seats, [pid]: device } } : r));
+  /** Donne la place d'un joueur à un autre téléphone (le sien ne répond plus), ou à ce téléphone. */
+  const giveSeat = (pid: string, to: string) => {
+    const name = ref.current.game?.players.find((p) => p.id === pid)?.name;
+    setReassign(null);
+    setRoom((r) => {
+      if (r.role !== 'host' || !r.seats) return r;
+      const lobby = r.lobby.map((e) => (name && e.name.toLocaleLowerCase('fr-FR') === name.toLocaleLowerCase('fr-FR') ? { ...e, device: to } : e));
+      return { ...r, seats: { ...r.seats, [pid]: to }, lobby, guests: dropGuest(r.guests, to) };
+    });
+    if (name) flash(to === device ? 'Vous jouez pour ' + name : name + ' rejoue sur son nouveau téléphone');
+  };
 
   const claim = (cid: string, pid: string) => {
     setClaimId(null);
@@ -406,7 +463,7 @@ export function App() {
     const d = ref.current;
     if (d.room?.role === 'host') {
       // À plusieurs téléphones : retour à la salle d'attente, les invités restent connectés.
-      setData({ ...d, game: null, history: [], tab: 'table', room: { ...d.room, seats: null } });
+      setData({ ...d, game: null, history: [], tab: 'table', room: { ...d.room, seats: null, lobby: mergeGuests(d.room.lobby, d.room.guests), guests: [] } });
       setSheet(null);
       scrollTop();
       return;
@@ -459,6 +516,30 @@ export function App() {
   };
   const sheetPlayer = g && sheet ? g.players.find((p) => p.id === sheet) : undefined;
   const claimCh = g && claimId ? s.challenges.find((c) => c.id === claimId) : undefined;
+
+  // Arrivés en cours de partie : où ils en sont (entrée à la manche suivante, prénom déjà pris…).
+  const sameName = (a: string, b: string) => a.toLocaleLowerCase('fr-FR') === b.toLocaleLowerCase('fr-FR');
+  const guestStatus = (name: string, dev: string): string => {
+    if (!g) return '';
+    if (g.players.some((p) => sameName(p.name, name))) return 'prénom déjà à la table';
+    if (dev !== device && net.offline(dev)) return 'déconnecté';
+    return g.round >= s.rounds ? 'jouera à la partie suivante' : 'entre à la manche ' + (g.round + 1);
+  };
+  const guestList = hosting && room.seats ? room.guests : guest ? (net.view?.guests ?? []) : [];
+  let notice: JSX.Element | null = null;
+  if (g && !g.finished && tab === 'table') {
+    if (hosting && guestList.length) notice = <GuestsBanner items={guestList.map((e) => ({ name: e.name, status: guestStatus(e.name, e.device) }))} />;
+    else if (guest && controls?.length === 0) {
+      const mine = guestList.filter((e) => e.device === device);
+      const clash = mine.find((e) => g.players.some((p) => sameName(p.name, e.name)));
+      const text = clash
+        ? '« ' + clash.name + ' » est déjà à la table. Si c’est vous sur un nouveau téléphone, demandez à l’hôte de toucher « Donner la place de ' + clash.name + ' ».'
+        : 'La partie a déjà commencé : vous regardez. ' +
+          (mine.length === 0 ? '' : g.round >= s.rounds ? 'Vous jouerez à la partie suivante.' : 'Vous entrerez à la manche ' + (g.round + 1) + '.');
+      notice = <SpectatorNote text={text} />;
+    }
+  }
+  const reassignPlayer = hosting && g && reassign ? g.players.find((p) => p.id === reassign) : undefined;
 
   let screen: JSX.Element;
   if (tab === 'table' && joining !== null && !room)
@@ -515,6 +596,8 @@ export function App() {
         onMove={(i, delta) => setRoom((r) => (r.role === 'host' ? { ...r, lobby: moveItem(r.lobby, i, delta) } : r))}
         onStart={startRoomGame}
         onCancel={closeRoom}
+        settings={data.settings}
+        onSettings={updateSettings}
       />
     );
   else if (tab === 'table') {
@@ -529,6 +612,9 @@ export function App() {
           onStart={(names) => startGame(names)}
           onHost={kind ? openRoom : undefined}
           onJoin={kind ? () => setJoining(codeFromUrl() ?? '') : undefined}
+          multi={multi}
+          onMulti={setMulti}
+          onSettings={updateSettings}
         />
       );
     else if (g.finished && g.revealed)
@@ -569,7 +655,7 @@ export function App() {
           settings={s}
           controls={controls}
           offline={seats ? pidOffline : undefined}
-          onTakeOver={hosting ? takeOver : undefined}
+          onTakeOver={hosting ? setReassign : undefined}
           onBet={(pid, amount) => send({ t: 'bet', pid, amount })}
           onReady={(pids, ready) => send({ t: 'ready', pids, ready })}
           onPlay={(pid, action) => send({ t: 'play', pid, action })}
@@ -694,6 +780,7 @@ export function App() {
             onClose={hosting ? closeRoom : leaveRoom}
           />
         )}
+        {notice}
         {screen}
       </main>
 
@@ -722,6 +809,15 @@ export function App() {
         <CorrectSheet game={g} settings={s} pid={sheetPlayer.id} onAdjust={(field, delta) => correct(sheetPlayer.id, field, delta)} onClose={() => setSheet(null)} />
       )}
       {claimCh && g && <ClaimDialog game={g} challenge={claimCh} onPick={(pid) => claim(claimCh.id, pid)} onClose={() => setClaimId(null)} />}
+      {reassignPlayer && hosting && (
+        <ReassignDialog
+          name={reassignPlayer.name}
+          candidates={room.guests.filter((e) => !net.offline(e.device))}
+          onPick={(dev) => giveSeat(reassignPlayer.id, dev)}
+          onSelf={() => giveSeat(reassignPlayer.id, device)}
+          onClose={() => setReassign(null)}
+        />
+      )}
       {confirm && <ConfirmDialog req={confirm} onClose={() => setConfirm(null)} />}
 
       <div class="toast-region" role="status" aria-live="polite">

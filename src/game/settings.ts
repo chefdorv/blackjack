@@ -151,6 +151,12 @@ export function normalizeSettings(raw: unknown): Settings {
   }
   if (Array.isArray(raw.bets)) {
     const bets = raw.bets.filter(isObj).map((b) => ({ min: clampInt(b.min, 1, BET_LIMIT), max: clampInt(b.max, 1, BET_LIMIT) }));
+    // Anciennes mises par défaut jamais modifiées (2–10 puis 4–20) : on passe aux nouvelles (5–10 puis 5–20).
+    const [m1, m2] = bets;
+    if (m1?.min === 2 && m1.max === 10 && m2?.min === 4 && m2.max === 20) {
+      bets[0] = { ...d.bets[0] };
+      bets[1] = { ...d.bets[1] };
+    }
     if (bets.length) s.bets = bets;
   }
   if (Array.isArray(raw.challenges)) {

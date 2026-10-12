@@ -162,7 +162,7 @@ export interface TableProps {
   onClaim: (cid: string) => void;
   /** Partie à plusieurs : le téléphone de ce joueur ne répond plus. */
   offline?: (pid: string) => boolean;
-  /** Hôte : reprendre la place d'un joueur déconnecté. */
+  /** Hôte : donner la place d'un joueur déconnecté à un autre téléphone (ou la reprendre). */
   onTakeOver?: (pid: string) => void;
 }
 
@@ -201,6 +201,8 @@ function Table({ game: g, settings: s, controls, onBet, onReady, onPlay, onNext,
   };
 
   const myPending = seated.filter((p) => mine(p.id) && !v.ready.includes(p.id));
+  // Aucun joueur de ce téléphone ne mise (spectateur, croupier de la donne) : rien à valider ni à changer.
+  const betting = seated.some((p) => mine(p.id));
   const waitingFor = seated.filter((p) => !v.ready.includes(p.id));
   const challenges = tableChallenges(g, s);
 
@@ -248,7 +250,7 @@ function Table({ game: g, settings: s, controls, onBet, onReady, onPlay, onNext,
       {v.phase === 'mises' && (
         <section class="panel bet-panel" aria-labelledby="bet-title">
           <h2 class="h3" id="bet-title">
-            {myPending.length > 0 ? 'Faites vos jeux' : 'Mises validées'}
+            {myPending.length > 0 ? 'Faites vos jeux' : betting ? 'Mises validées' : 'Les mises'}
           </h2>
           {myPending.length > 0 ? (
             <>
@@ -280,18 +282,20 @@ function Table({ game: g, settings: s, controls, onBet, onReady, onPlay, onNext,
               <p class="muted" aria-live="polite">
                 En attente de {waitingFor.map((p) => p.name).join(', ')}.
               </p>
-              <button
-                type="button"
-                class="btn ghost"
-                onClick={() =>
-                  onReady(
-                    seated.filter((p) => mine(p.id)).map((p) => p.id),
-                    false,
-                  )
-                }
-              >
-                Changer ma mise
-              </button>
+              {betting && (
+                <button
+                  type="button"
+                  class="btn ghost"
+                  onClick={() =>
+                    onReady(
+                      seated.filter((p) => mine(p.id)).map((p) => p.id),
+                      false,
+                    )
+                  }
+                >
+                  Changer ma mise
+                </button>
+              )}
             </>
           )}
         </section>
@@ -376,7 +380,7 @@ function Table({ game: g, settings: s, controls, onBet, onReady, onPlay, onNext,
               )}
               {offline?.(p.id) && onTakeOver && !mine(p.id) && (
                 <button type="button" class="btn sm ghost" onClick={() => onTakeOver(p.id)}>
-                  Jouer à la place de {p.name}
+                  Donner la place de {p.name}…
                 </button>
               )}
               <div class="badges">

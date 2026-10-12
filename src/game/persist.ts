@@ -15,7 +15,15 @@ export const SETUP_MODES: readonly SetupMode[] = ['reel', 'tournant', 'banque'];
 
 /** Partie à plusieurs téléphones en cours (voir src/net) ; relue sans dépendre du réseau. */
 export type PersistedRoom =
-  | { role: 'host'; code: string; mode: 'tournant' | 'banque'; lobby: Array<{ name: string; device: string }>; seats: Record<string, string> | null }
+  | {
+      role: 'host';
+      code: string;
+      mode: 'tournant' | 'banque';
+      lobby: Array<{ name: string; device: string }>;
+      seats: Record<string, string> | null;
+      /** Téléphones arrivés une fois la partie lancée : ils entrent à la manche suivante. */
+      guests: Array<{ name: string; device: string }>;
+    }
   | { role: 'guest'; code: string; names: string[] };
 
 export interface Persisted {
@@ -218,15 +226,24 @@ function normRoom(v: unknown): PersistedRoom | null {
   if (!isObj(v) || typeof v.code !== 'string' || !/^[A-Z]{4}$/.test(v.code)) return null;
   if (v.role === 'guest') return { role: 'guest', code: v.code, names: strList(v.names).map((n) => n.slice(0, NAME_MAX)).slice(0, MAX_PLAYERS) };
   if (v.role !== 'host') return null;
-  const lobby = Array.isArray(v.lobby)
-    ? v.lobby.filter(isObj).flatMap((e) => (typeof e.name === 'string' && typeof e.device === 'string' ? [{ name: e.name.slice(0, NAME_MAX), device: e.device }] : []))
-    : [];
+  const entries = (x: unknown) =>
+    Array.isArray(x)
+      ? x.filter(isObj).flatMap((e) => (typeof e.name === 'string' && typeof e.device === 'string' ? [{ name: e.name.slice(0, NAME_MAX), device: e.device }] : []))
+      : [];
+  const lobby = entries(v.lobby);
   let seats: Record<string, string> | null = null;
   if (isObj(v.seats)) {
     seats = {};
     for (const [pid, d] of Object.entries(v.seats)) if (typeof d === 'string') seats[pid] = d;
   }
-  return { role: 'host', code: v.code, mode: v.mode === 'banque' ? 'banque' : 'tournant', lobby: lobby.slice(0, MAX_PLAYERS), seats };
+  return {
+    role: 'host',
+    code: v.code,
+    mode: v.mode === 'banque' ? 'banque' : 'tournant',
+    lobby: lobby.slice(0, MAX_PLAYERS),
+    seats,
+    guests: seats ? entries(v.guests).slice(0, MAX_PLAYERS * 2) : [],
+  };
 }
 
 function normNight(v: unknown, i: number): Night | null {

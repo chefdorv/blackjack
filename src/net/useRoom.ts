@@ -16,6 +16,8 @@ export interface GuestView {
   game: Game;
   settings: Settings;
   seats: Seats;
+  /** Téléphones arrivés en cours de partie, en attente de la manche suivante. */
+  guests: LobbyEntry[];
 }
 
 const HEARTBEAT_MS = 4000;
@@ -65,6 +67,8 @@ export function useRoom({
   const [closedByHost, setClosedByHost] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const seen = useRef<Record<string, number>>({});
+  // Début de l'écoute : un téléphone pas encore entendu n'est pas « déconnecté » avant OFFLINE_MS.
+  const since = useRef(Date.now());
   const hostDevice = useRef<string | null>(null);
   const transport = useRef<Transport | null>(null);
   const rev = useRef(0);
@@ -85,7 +89,7 @@ export function useRoom({
       return;
     }
     rev.current = Math.max(rev.current + 1, Date.now());
-    send({ k: 'state', from: device, rev: rev.current, game: redact(g), settings: s, seats: r.seats, lobby: r.lobby });
+    send({ k: 'state', from: device, rev: rev.current, game: redact(g), settings: s, seats: r.seats, lobby: r.lobby, guests: r.guests });
   };
 
   const key = room && kind ? kind + ':' + room.role + ':' + room.code : null;
@@ -94,6 +98,7 @@ export function useRoom({
     setView(null);
     setClosedByHost(false);
     seen.current = {};
+    since.current = Date.now();
     hostDevice.current = null;
     const t = openTransport(
       kind,
@@ -105,22 +110,27 @@ export function useRoom({
         const r = latest.current.room;
         if (r?.role === 'host') {
           if (m.k === 'hello') {
-            if (r.seats) sendState();
-            else latest.current.onHello(m.from, m.names);
+            latest.current.onHello(m.from, m.names);
+            // Partie lancée : le téléphone (re)venu reçoit la table, une fois son arrivée notée par l'hôte.
+            if (r.seats) window.setTimeout(sendState, 0);
           } else if (m.k === 'intent') latest.current.onIntent(m.from, m.intent);
           else if (m.k === 'leave') latest.current.onLeave(m.from);
         } else if (r?.role === 'guest') {
           if (m.k === 'lobby' || m.k === 'state' || m.k === 'closed') hostDevice.current = m.from;
-          if (m.k === 'lobby') setGuestLobby({ lobby: m.lobby, mode: m.mode });
-          else if (m.k === 'state') {
+          if (m.k === 'lobby') {
+            // L'hôte est (re)venu à la salle d'attente : on quitte la table précédente.
+            setGuestLobby({ lobby: m.lobby, mode: m.mode });
+            setView(null);
+          } else if (m.k === 'state') {
             setGuestLobby((x) => ({ ...x, lobby: m.lobby }));
-            setView((cur) => (cur && cur.rev >= m.rev ? cur : { rev: m.rev, game: m.game, settings: m.settings, seats: m.seats }));
+            setView((cur) => (cur && cur.rev >= m.rev ? cur : { rev: m.rev, game: m.game, settings: m.settings, seats: m.seats, guests: m.guests }));
           } else if (m.k === 'closed') setClosedByHost(true);
         }
       },
       (st) => {
         setStatus(st);
         if (st !== 'connecte') return;
+        since.current = Date.now();
         const r = latest.current.room;
         if (r?.role === 'guest') send({ k: 'hello', from: device, names: r.names });
         else sendState();
@@ -153,7 +163,7 @@ export function useRoom({
     if (room?.role === 'guest' && status === 'connecte') send({ k: 'hello', from: device, names: room.names });
   }, [names]);
 
-  const offline = (d: string) => d !== device && now - (seen.current[d] ?? 0) > OFFLINE_MS;
+  const offline = (d: string) => d !== device && now - (seen.current[d] ?? since.current) > OFFLINE_MS;
   const hostOffline = room?.role === 'guest' && status === 'connecte' && (hostDevice.current === null ? false : offline(hostDevice.current));
 
   return {

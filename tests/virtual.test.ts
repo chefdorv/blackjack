@@ -6,6 +6,7 @@ import { liveRanking, pending } from '../src/game/scoring';
 import { normalizeSettings, updateChallenge } from '../src/game/settings';
 import type { Game, Settings, Virtual } from '../src/game/types';
 import {
+  addPlayers,
   allReady,
   betRange,
   chooseBet,
@@ -20,7 +21,12 @@ import {
   setReady,
   turnPid,
 } from '../src/game/virtual';
-import { seeded, settings } from './helpers';
+import { seeded, settings as baseSettings } from './helpers';
+
+/** Mises 2–10 / 4–20 / 6–30 : les montants des scénarios ci-dessous ont été calculés avec elles. */
+function settings(patch: Partial<Settings> = {}): Settings {
+  return baseSettings({ bets: [{ min: 2, max: 10 }, { min: 4, max: 20 }, { min: 6, max: 30 }], ...patch });
+}
 
 function cards(s: string): Card[] {
   if (!s) return [];
@@ -316,5 +322,41 @@ describe('sauvegarde', () => {
     const edited = updateChallenge(s, 'c1', { text: 'Autre chose' });
     expect(edited.challenges[0].auto).toBeUndefined();
     expect(updateChallenge(edited, 'c1', { text: 'Gagner une main après avoir doublé.' }).challenges[0].auto).toBe('double-gagne');
+  });
+});
+
+describe('arrivée en cours de partie', () => {
+  it('un joueur s’assoit en bout de table au début de la manche suivante', () => {
+    const s = settings({ deals: 1, rounds: 2 });
+    let g = start('tournant', s);
+    for (let i = 0; i < 3; i++) {
+      g = standAll(bet(g, s, {}), s);
+      // en pleine manche (croupier suivant) : refusé
+      expect(addPlayers(g, s, ['Zoé'])).toBe(g);
+      const n = nextDeal(g, s);
+      if (!n) throw new Error('bloqué');
+      g = n.game;
+      if (i === 0) expect(addPlayers(g, s, ['Zoé'])).toBe(g);
+    }
+    // bilan de fin de manche : toujours refusé
+    expect(addPlayers(g, s, ['Zoé'])).toBe(g);
+    g = nextManche(g, s, rng).game;
+    const after = addPlayers(g, s, ['Zoé', 'alice'], 5);
+    expect(after.players.map((p) => p.name)).toEqual(['Alice', 'Bob', 'Chloé', 'Zoé']);
+    const zoe = after.players[3];
+    expect(vOf(after).chips[zoe.id]).toBe(100);
+    expect(seatedPlayers(after).map((p) => p.name)).toEqual(['Bob', 'Chloé', 'Zoé']);
+    // elle sera croupier à son tour : la manche dure maintenant 4 croupiers
+    let x = after;
+    const dealers: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      dealers.push(x.players[x.dealer].name);
+      x = standAll(bet(x, s, {}), s);
+      const n = nextDeal(x, s);
+      if (!n) throw new Error('bloqué');
+      x = n.game;
+    }
+    expect(dealers).toEqual(['Alice', 'Bob', 'Chloé', 'Zoé']);
+    expect(x.settling).toEqual({ round: 2 });
   });
 });

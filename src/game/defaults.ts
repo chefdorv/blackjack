@@ -78,8 +78,8 @@ export function defaultSettings(): Settings {
     rebuyMalus: 50,
     bonusBJ: 10,
     bets: [
-      { min: 2, max: 10 },
-      { min: 4, max: 20 },
+      { min: 5, max: 10 },
+      { min: 5, max: 20 },
       { min: 6, max: 30 },
     ],
     challenges: defaultChallenges(),

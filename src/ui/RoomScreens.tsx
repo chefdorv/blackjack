@@ -4,6 +4,9 @@ import { addName, MAX_PLAYERS, minPlayers, NAME_MAX, nameError } from '../game/n
 import type { DealerMode } from '../game/types';
 import type { LobbyEntry } from '../net/protocol';
 import type { TransportStatus } from '../net/transport';
+import type { Settings } from '../game/types';
+import { Dialog } from './common';
+import { DurationFields } from './SetupScreen';
 import { IconClose, IconDown, IconUp } from './icons';
 
 const STATUS: Record<TransportStatus, string> = {
@@ -88,7 +91,11 @@ export function HostLobbyScreen({
   onMove,
   onStart,
   onCancel,
+  settings,
+  onSettings,
 }: {
+  settings: Settings;
+  onSettings: (s: Settings) => void;
   code: string;
   mode: DealerMode;
   lobby: LobbyEntry[];
@@ -165,6 +172,7 @@ export function HostLobbyScreen({
       </ol>
       {lobby.length === 0 && <div class="empty">Personne pour l'instant.</div>}
       <NameForm id="lobby-name" names={lobby.map((e) => e.name)} others={[]} onAdd={onAdd} label="Joueur sur ce téléphone" />
+      <DurationFields settings={settings} mode={mode} players={lobby.length} onSettings={onSettings} />
       <button type="button" class="btn big gold" onClick={onStart} disabled={lobby.length < min || lobby.length > MAX_PLAYERS}>
         Lancer la partie
       </button>
@@ -325,6 +333,75 @@ export function RoomBar({
       <button type="button" class="btn sm ghost" onClick={onClose}>
         {label}
       </button>
+    </div>
+  );
+}
+
+/** Hôte : à quel téléphone donner la place d'un joueur dont le téléphone ne répond plus. */
+export function ReassignDialog({
+  name,
+  candidates,
+  onPick,
+  onSelf,
+  onClose,
+}: {
+  name: string;
+  candidates: LobbyEntry[];
+  onPick: (device: string) => void;
+  onSelf: () => void;
+  onClose: () => void;
+}) {
+  const devices = [...new Set(candidates.map((c) => c.device))];
+  return (
+    <Dialog label={'Donner la place de ' + name} onClose={onClose} variant="modal">
+      <div class="k">Le téléphone de {name} ne répond plus</div>
+      <h2 class="h3">Qui reprend sa place ?</h2>
+      <p class="small">Ses jetons, ses défis et sa main en cours restent les mêmes.</p>
+      <div class="pick-list">
+        {devices.map((d) => (
+          <button type="button" class="pick stack" key={d} onClick={() => onPick(d)}>
+            {candidates
+              .filter((c) => c.device === d)
+              .map((c) => c.name)
+              .join(', ')}{' '}
+            <small>téléphone arrivé en cours de partie</small>
+          </button>
+        ))}
+        <button type="button" class="pick stack" onClick={onSelf}>
+          Ce téléphone <small>vous jouez à sa place</small>
+        </button>
+      </div>
+      {devices.length === 0 && (
+        <p class="small">Pour qu'il reprenne la main sur un autre téléphone : ouvrez le lien de la salle sur ce téléphone, puis revenez ici.</p>
+      )}
+      <button type="button" class="btn" onClick={onClose}>
+        Annuler
+      </button>
+    </Dialog>
+  );
+}
+
+/** Invité sans place à la table : il regarde, et sait quand il pourra jouer. */
+export function SpectatorNote({ text }: { text: string }) {
+  return (
+    <p class="spectator" role="status">
+      {text}
+    </p>
+  );
+}
+
+/** Hôte : téléphones arrivés une fois la partie lancée. */
+export function GuestsBanner({ items }: { items: Array<{ name: string; status: string }> }) {
+  return (
+    <div class="spectator" role="status">
+      <b>Arrivés en cours de partie</b>
+      <ul>
+        {items.map((i) => (
+          <li key={i.name}>
+            {i.name} : {i.status}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

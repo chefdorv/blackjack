@@ -38,7 +38,7 @@ export type Seats = Record<string, string>;
 export type NetMessage =
   | { k: 'hello'; from: string; names: string[] }
   | { k: 'lobby'; from: string; lobby: LobbyEntry[]; mode: DealerMode }
-  | { k: 'state'; from: string; rev: number; game: Game; settings: Settings; seats: Seats; lobby: LobbyEntry[] }
+  | { k: 'state'; from: string; rev: number; game: Game; settings: Settings; seats: Seats; lobby: LobbyEntry[]; guests: LobbyEntry[] }
   | { k: 'intent'; from: string; intent: Intent }
   | { k: 'here'; from: string }
   | { k: 'leave'; from: string }
@@ -79,7 +79,16 @@ export function parseMessage(v: unknown): NetMessage | null {
     case 'state': {
       const game = normalizeGame(v.game);
       if (!game?.virtual || typeof v.rev !== 'number') return null;
-      return { k: 'state', from, rev: v.rev, game, settings: normalizeSettings(v.settings), seats: parseSeats(v.seats), lobby: parseLobby(v.lobby) };
+      return {
+        k: 'state',
+        from,
+        rev: v.rev,
+        game,
+        settings: normalizeSettings(v.settings),
+        seats: parseSeats(v.seats),
+        lobby: parseLobby(v.lobby),
+        guests: parseLobby(v.guests),
+      };
     }
     case 'intent': {
       const intent = parseIntent(v.intent);
@@ -133,6 +142,45 @@ export function seatsFor(game: Game, lobby: readonly LobbyEntry[]): Seats {
     if (e) seats[p.id] = e.device;
   }
   return seats;
+}
+
+/** Un téléphone arrive alors que la partie est lancée : on retient ses joueurs (remplace son annonce précédente). */
+export function noteGuest(guests: readonly LobbyEntry[], device: string, names: readonly string[]): LobbyEntry[] {
+  const mine = names.map(cleanName).filter(Boolean).slice(0, MAX_PLAYERS);
+  return guests.filter((e) => e.device !== device).concat(mine.map((name) => ({ name, device })));
+}
+
+export function dropGuest(guests: readonly LobbyEntry[], device: string): LobbyEntry[] {
+  return guests.filter((e) => e.device !== device);
+}
+
+/**
+ * Arrivés en cours de partie qui peuvent s'asseoir maintenant : téléphone joignable, prénom
+ * pas déjà à la table, dans la limite des places.
+ */
+export function lateJoiners(game: Game, guests: readonly LobbyEntry[], online: (device: string) => boolean): LobbyEntry[] {
+  const taken = new Set(game.players.map((p) => p.name.toLocaleLowerCase('fr-FR')));
+  const out: LobbyEntry[] = [];
+  for (const e of guests) {
+    const key = e.name.toLocaleLowerCase('fr-FR');
+    if (!online(e.device) || taken.has(key) || game.players.length + out.length >= MAX_PLAYERS) continue;
+    taken.add(key);
+    out.push(e);
+  }
+  return out;
+}
+
+/** Retour à la salle d'attente : les arrivés en cours de partie y prennent place. */
+export function mergeGuests(lobby: readonly LobbyEntry[], guests: readonly LobbyEntry[]): LobbyEntry[] {
+  let out = lobby.slice();
+  for (const device of new Set(guests.map((g) => g.device))) {
+    const names = out
+      .filter((e) => e.device === device)
+      .map((e) => e.name)
+      .concat(guests.filter((g) => g.device === device).map((g) => g.name));
+    out = joinLobby(out, device, names).lobby;
+  }
+  return out;
 }
 
 export function controlled(seats: Seats, device: string): string[] {

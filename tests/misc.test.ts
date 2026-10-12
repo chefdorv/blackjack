@@ -30,8 +30,8 @@ describe('réglages', () => {
   it('prolonge les mises quand on ajoute des manches et garde min ≤ max', () => {
     const s = setNumber(defaultSettings(), 'rounds', 5);
     expect(s.bets.slice(0, 5)).toEqual([
-      { min: 2, max: 10 },
-      { min: 4, max: 20 },
+      { min: 5, max: 10 },
+      { min: 5, max: 20 },
       { min: 6, max: 30 },
       { min: 8, max: 40 },
       { min: 10, max: 50 },
@@ -40,6 +40,21 @@ describe('réglages', () => {
     expect(setBet(s, 0, 'max', 1).bets[0]).toEqual({ min: 1, max: 1 });
     expect(fixBets({ ...s, bets: [{ min: 9, max: 3 }] }).bets[0]).toEqual({ min: 3, max: 9 });
     expect(betFor(s, 99)).toEqual(s.bets[s.bets.length - 1]);
+  });
+
+  it('passe les anciennes mises par défaut (2–10, 4–20) aux nouvelles, sans toucher aux mises modifiées', () => {
+    const old = [
+      { min: 2, max: 10 },
+      { min: 4, max: 20 },
+      { min: 6, max: 30 },
+    ];
+    expect(normalizeSettings({ bets: old }).bets.slice(0, 3)).toEqual([
+      { min: 5, max: 10 },
+      { min: 5, max: 20 },
+      { min: 6, max: 30 },
+    ]);
+    const custom = [{ min: 2, max: 12 }, ...old.slice(1)];
+    expect(normalizeSettings({ bets: custom }).bets[0]).toEqual({ min: 2, max: 12 });
   });
 
   it('borne les valeurs saisies', () => {

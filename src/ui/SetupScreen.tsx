@@ -1,7 +1,9 @@
 import { useState } from 'preact/hooks';
 import { addName, canStart, MAX_PLAYERS, minPlayers, moveItem, NAME_MAX, nameError } from '../game/names';
 import type { SetupMode } from '../game/persist';
+import { setNumber } from '../game/settings';
 import type { Settings } from '../game/types';
+import { Stepper } from './common';
 import { IconClose, IconDown, IconUp } from './icons';
 
 function Choice<T extends string>({
@@ -33,6 +35,54 @@ function Choice<T extends string>({
   );
 }
 
+/** Nombre de manches et de donnes, réglables dès la création (et dans l'onglet Réglages). */
+export function DurationFields({
+  settings: s,
+  mode,
+  players,
+  onSettings,
+}: {
+  settings: Settings;
+  mode: SetupMode;
+  players: number;
+  onSettings: (s: Settings) => void;
+}) {
+  const bank = mode === 'banque';
+  const n = Math.max(players, 1);
+  const perRound = bank
+    ? 'Une manche : ' + n + ' joueur' + (n > 1 ? 's' : '') + ' × ' + s.deals + ' = ' + n * s.deals + ' donnes'
+    : 'Une manche : chacun est croupier ' + s.deals + ' donne' + (s.deals > 1 ? 's' : '');
+  return (
+    <fieldset class="choice">
+      <legend class="k">Durée de la partie</legend>
+      <div>
+        <Stepper
+          id="setup-rounds"
+          label="Manches"
+          value={s.rounds}
+          min={1}
+          max={10}
+          onChange={(v) => {
+            if (v !== null) onSettings(setNumber(s, 'rounds', v));
+          }}
+          sub={<div class="small">Les mises montent à chaque manche</div>}
+        />
+        <Stepper
+          id="setup-deals"
+          label={bank ? 'Donnes par joueur' : 'Donnes par croupier'}
+          value={s.deals}
+          min={1}
+          max={20}
+          onChange={(v) => {
+            if (v !== null) onSettings(setNumber(s, 'deals', v));
+          }}
+          sub={<div class="small">{perRound}</div>}
+        />
+      </div>
+    </fieldset>
+  );
+}
+
 export function SetupScreen({
   names,
   settings: s,
@@ -42,6 +92,9 @@ export function SetupScreen({
   onStart,
   onHost,
   onJoin,
+  multi,
+  onMulti,
+  onSettings,
 }: {
   names: string[];
   settings: Settings;
@@ -49,6 +102,10 @@ export function SetupScreen({
   onMode: (m: SetupMode) => void;
   onNames: (names: string[]) => void;
   onStart: (names: string[]) => void;
+  /** À plusieurs téléphones (choix « Chacun sur le sien »). */
+  multi: boolean;
+  onMulti: (m: boolean) => void;
+  onSettings: (s: Settings) => void;
   /** Ouvrir une salle à plusieurs téléphones (absent si aucun serveur n'est configuré). */
   onHost?: () => void;
   onJoin?: () => void;
@@ -63,10 +120,15 @@ export function SetupScreen({
   const min = minPlayers(mode);
   const missing = min - names.length;
   const virtual = mode !== 'reel';
+  const hosting = virtual && multi && onHost !== undefined;
   const dealers = mode === 'banque' ? 'la banque' : names.length + ' croupiers';
   let hint: string;
   if (err === 'doublon') hint = 'Ce nom est déjà à la table.';
   else if (names.length >= MAX_PLAYERS) hint = 'Table complète : ' + MAX_PLAYERS + ' joueurs maximum.';
+  else if (hosting)
+    hint = names.length
+      ? 'Les autres joueurs rejoindront avec le code de la salle.'
+      : 'Ajoutez votre prénom (et ceux des joueurs qui partagent ce téléphone).';
   else if (missing > 0)
     hint = 'Encore ' + missing + ' joueur' + (missing > 1 ? 's' : '') + ' minimum pour lancer. Chacun démarre avec ' + s.startChips + ' jetons.';
   else
@@ -80,6 +142,14 @@ export function SetupScreen({
       <h1 class="h1" id="setup-title">
         Qui s'assoit à la table ?
       </h1>
+      {onJoin && (
+        <div class="join-row">
+          <span class="small">On vous a donné un code ?</span>
+          <button type="button" class="btn sm ghost" onClick={onJoin}>
+            Rejoindre une partie
+          </button>
+        </div>
+      )}
       <Choice
         name="mode"
         legend="Comment on joue ?"
@@ -102,8 +172,23 @@ export function SetupScreen({
           ]}
         />
       )}
+      {virtual && onHost && (
+        <Choice
+          name="telephones"
+          legend="Sur quels téléphones ?"
+          value={multi ? 'plusieurs' : 'seul'}
+          onChange={(v) => onMulti(v === 'plusieurs')}
+          options={[
+            { value: 'seul', title: 'Un seul téléphone', text: 'On se passe le téléphone autour de la table.' },
+            { value: 'plusieurs', title: 'Chacun sur le sien', text: 'Ce téléphone ouvre une salle ; les autres la rejoignent avec un code.' },
+          ]}
+        />
+      )}
+      <DurationFields settings={s} mode={mode} players={names.length} onSettings={onSettings} />
       <p class="muted">
-        {mode === 'banque'
+        {hosting
+          ? 'Ajoutez les joueurs de ce téléphone. Vous pourrez changer l’ordre de la table dans la salle.'
+          : mode === 'banque'
           ? 'Ajoutez les joueurs dans l’ordre autour de la table (' + min + ' à ' + MAX_PLAYERS + ').'
           : "Ajoutez les joueurs dans l'ordre autour de la table (" + min + ' à ' + MAX_PLAYERS + '). Le premier de la liste est le premier croupier, puis la main passe au joueur suivant, à sa gauche.'}
       </p>
@@ -163,24 +248,14 @@ export function SetupScreen({
       <p class={'small' + (err === 'doublon' ? ' hint-err' : '')} id="setup-hint" aria-live="polite">
         {hint}
       </p>
-      <button type="button" class="btn big gold" onClick={() => onStart(names.slice())} disabled={!canStart(names, min)}>
-        Lancer la partie
-      </button>
-      {(onHost || onJoin) && (
-        <div class="multi">
-          <div class="k">À plusieurs téléphones</div>
-          {virtual && onHost && (
-            <button type="button" class="btn" onClick={onHost}>
-              Ouvrir une salle pour les autres téléphones
-            </button>
-          )}
-          {virtual && onHost && <p class="small">Ajoutez ici seulement les joueurs de ce téléphone ; les autres rejoignent avec un code.</p>}
-          {onJoin && (
-            <button type="button" class="btn ghost" onClick={onJoin}>
-              Rejoindre une partie avec un code
-            </button>
-          )}
-        </div>
+      {hosting ? (
+        <button type="button" class="btn big gold" onClick={onHost}>
+          Ouvrir la salle
+        </button>
+      ) : (
+        <button type="button" class="btn big gold" onClick={() => onStart(names.slice())} disabled={!canStart(names, min)}>
+          Lancer la partie
+        </button>
       )}
     </section>
   );

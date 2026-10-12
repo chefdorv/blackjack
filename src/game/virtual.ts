@@ -6,6 +6,7 @@ import { act, isBlackjack, isNatural, isWin, legalActions, newShoe, seatNet, sta
 import { claimChallenge, kindOf, tableChallenges, type FillResult } from './challenges';
 import { dealerAchieves, playerAchieves, type DetectContext } from './detect';
 import { advance, createGame, endGame, finishSettling, type AdvanceEvent } from './game';
+import { MAX_PLAYERS } from './names';
 import { betFor } from './settings';
 import type { BetRange, DealerMode, DealSummary, Game, Player, Rng, Settings, Virtual } from './types';
 
@@ -261,6 +262,28 @@ export function nextManche(game: Game, s: Settings, rng: Rng): { game: Game; fin
     for (const p of seatedPlayers(x)) v.bets[p.id] = clampBet(x, s, p.id, v.bets[p.id] ?? 0);
   });
   return { game: g, finished: false };
+}
+
+/**
+ * Joueurs arrivés en cours de partie : ils s'assoient en bout de table au début d'une manche,
+ * avec les jetons de départ. Refusé en pleine manche (la rotation du croupier serait faussée).
+ */
+export function addPlayers(game: Game, s: Settings, names: readonly string[], now: number = Date.now()): Game {
+  const v = game.virtual;
+  const startOfRound = game.deal === 1 && game.dealersDone === 0 && v?.phase === 'mises' && v.dealNo >= 0;
+  if (!v || game.finished || game.settling || !startOfRound || names.length === 0) return game;
+  return withVirtual(game, (g, vv) => {
+    const taken = new Set(g.players.map((p) => p.name.toLocaleLowerCase('fr-FR')));
+    for (const name of names) {
+      const key = name.toLocaleLowerCase('fr-FR');
+      if (!name || taken.has(key) || g.players.length >= MAX_PLAYERS) continue;
+      taken.add(key);
+      const id = 'p' + now.toString(36) + '_n' + g.players.length;
+      g.players.push({ id, name, bonus: 0, rebuys: 0, bj: 0, settled: 0, final: null });
+      vv.chips[id] = s.startChips;
+      vv.bets[id] = clampBet(g, s, id, betFor(s, g.round).min);
+    }
+  });
 }
 
 /** Partie terminée : les tas comptent comme décompte final, pas de saisie. Une donne en cours est annulée. */
