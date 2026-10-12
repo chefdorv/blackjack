@@ -6,6 +6,7 @@ import { liveRanking, pending } from '../src/game/scoring';
 import { normalizeSettings, updateChallenge } from '../src/game/settings';
 import type { Game, Settings, Virtual } from '../src/game/types';
 import {
+  quickBets,
   addPlayers,
   allReady,
   betRange,
@@ -358,5 +359,13 @@ describe('arrivée en cours de partie', () => {
     }
     expect(dealers).toEqual(['Alice', 'Bob', 'Chloé', 'Zoé']);
     expect(x.settling).toEqual({ round: 2 });
+  });
+});
+
+describe('mises rapides', () => {
+  it('propose le minimum, le milieu arrondi et le maximum', () => {
+    expect(quickBets(5, 10).map((q) => q.amount)).toEqual([5, 8, 10]);
+    expect(quickBets(10, 20).map((q) => q.amount)).toEqual([10, 15, 20]);
+    expect(quickBets(3, 3).map((q) => q.amount)).toEqual([3, 3, 3]);
   });
 });

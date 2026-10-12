@@ -390,3 +390,23 @@ select.txt option{background:#0e4a30;color:#f6f1e3}
 .spectator{margin:0;padding:12px 14px;border-radius:14px;background:rgba(130,70,200,.22);border:1px solid #a57be0;font-size:16px;font-weight:700;line-height:1.4}
 .spectator ul{margin:6px 0 0;padding-left:20px;font-weight:600}
 .join-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 8px 8px 14px;border-radius:14px;background:rgba(0,0,0,.22);border:1px dashed rgba(226,184,90,.5)}
+/* mises rapides : mini, milieu, max */
+.bet-row{display:flex;flex-direction:column;gap:8px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,.08)}
+.bet-row .set-row{border-bottom:0;padding-bottom:0}
+.bet-quick{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.bet-quick .btn{flex-direction:column;gap:0;line-height:1.1;padding:4px 6px}
+.bet-quick .btn b{font-size:18px}
+.bq-k{font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#d9c48f}
+.bet-quick .btn.on{background:rgba(226,184,90,.22);border:2px solid #e2b85a}
+/* en pleine partie : pas de bandeau du nom, la table prend la place */
+.in-play .top{position:static;justify-content:flex-end;padding-top:calc(8px + env(safe-area-inset-top));padding-bottom:8px}
+.in-play .top+.main{padding-top:12px}
+.in-play .main{padding-top:calc(12px + env(safe-area-inset-top));gap:12px}
+.in-play .panel{padding:14px;gap:10px}
+.in-play .dealer-zone{padding:10px 12px;gap:6px}
+.in-play .dz-cards{min-height:80px}
+.in-play .seats{gap:10px}
+.in-play .seat-card{padding:10px;gap:8px}
+.in-play .seat-card.is-turn{padding:9px}
+.in-play .dealer-zone,.in-play .seat-card{scroll-margin-top:calc(12px + env(safe-area-inset-top))}
+.in-play .toast{top:calc(16px + env(safe-area-inset-top))}

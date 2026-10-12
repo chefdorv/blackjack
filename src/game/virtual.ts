@@ -61,6 +61,15 @@ export function betRange(g: Game, s: Settings, pid: string): BetRange {
   return { min: Math.max(1, Math.min(range.min, chips)), max: Math.max(1, Math.min(range.max, chips)) };
 }
 
+/** Raccourcis de mise : le minimum, le milieu (arrondi) et le maximum de la fourchette. */
+export function quickBets(min: number, max: number): { label: string; amount: number }[] {
+  return [
+    { label: 'Mini', amount: min },
+    { label: 'Milieu', amount: Math.round((min + max) / 2) },
+    { label: 'Max', amount: max },
+  ];
+}
+
 function clampBet(g: Game, s: Settings, pid: string, amount: number): number {
   const r = betRange(g, s, pid);
   const n = Number.isFinite(amount) ? Math.round(amount) : r.min;

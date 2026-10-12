@@ -51,6 +51,7 @@ export function Stepper({
   placeholder,
   allowEmpty = false,
   hideLabel = false,
+  clearOnFocus = false,
   sub,
 }: {
   id: string;
@@ -65,6 +66,8 @@ export function Stepper({
   placeholder?: string;
   allowEmpty?: boolean;
   hideLabel?: boolean;
+  /** Vide le champ quand on le touche : on tape la nouvelle valeur sans effacer l'ancienne (remise si rien n'est tapé). */
+  clearOnFocus?: boolean;
   sub?: ComponentChildren;
 }) {
   const clamp = (n: number) => Math.max(min, Math.min(max, Math.round(n)));
@@ -109,7 +112,21 @@ export function Stepper({
           min={min}
           max={max}
           value={value === null ? '' : value}
-          placeholder={placeholder}
+          placeholder={clearOnFocus && value !== null ? String(value) : placeholder}
+          onFocus={
+            clearOnFocus
+              ? (e) => {
+                  e.currentTarget.value = '';
+                }
+              : undefined
+          }
+          onBlur={
+            clearOnFocus
+              ? (e) => {
+                  if (e.currentTarget.value.trim() === '') e.currentTarget.value = String(value ?? min);
+                }
+              : undefined
+          }
           onInput={(e) => commit(e, true)}
           onChange={(e) => commit(e, false)}
         />

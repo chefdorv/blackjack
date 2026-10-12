@@ -510,6 +510,8 @@ export function App() {
   const controls = seats ? controlled(seats, device) : null;
   const unflipped = g ? unflippedCount(g, s) : 0;
   const undoLabel = g && !room ? lastLabel(data.history) : null;
+  // En pleine partie, le bandeau du nom laisse la place au jeu (le bouton Annuler reste, s'il sert).
+  const inPlay = g !== null && !g.finished && tab === 'table';
   const pidOffline = (pid: string) => {
     const d = seats?.[pid];
     return d !== undefined && net.offline(d);
@@ -527,7 +529,7 @@ export function App() {
   };
   const guestList = hosting && room.seats ? room.guests : guest ? (net.view?.guests ?? []) : [];
   let notice: JSX.Element | null = null;
-  if (g && !g.finished && tab === 'table') {
+  if (inPlay) {
     if (hosting && guestList.length) notice = <GuestsBanner items={guestList.map((e) => ({ name: e.name, status: guestStatus(e.name, e.device) }))} />;
     else if (guest && controls?.length === 0) {
       const mine = guestList.filter((e) => e.device === device);
@@ -748,8 +750,10 @@ export function App() {
     );
 
   return (
-    <div class="app">
+    <div class={'app' + (inPlay ? ' in-play' : '')}>
+      {(!inPlay || undoLabel) && (
       <header class="top">
+        {!inPlay && (
         <div class="brand">
           <span class="brand-mark" aria-hidden="true">
             ♠
@@ -758,6 +762,7 @@ export function App() {
             Blackjack <span class="brand-sub">entre potes</span>
           </span>
         </div>
+        )}
         {undoLabel && (
           <button type="button" class="undo" onClick={undo} aria-label={'Annuler : ' + undoLabel}>
             <IconUndo />
@@ -768,6 +773,7 @@ export function App() {
           </button>
         )}
       </header>
+      )}
 
       <main class="main" id="contenu">
         {room && g && tab === 'table' && (
