@@ -130,10 +130,15 @@ règle dès l'écran de création, et encore dans la salle d'attente.
   choisit lui-même pour jouer à sa place. Jetons, défis et main en cours sont conservés.
 - **Nouvelle partie** : l'hôte revient à la salle d'attente, et tous les joueurs avec lui.
 
-Petites vibrations à chaque carte posée, sur un blackjack, quand une main gagne contre la
-banque, et au début et à la fin de chaque manche (`src/haptics.ts`). Android : API
-Vibration. iPhone (Safari n'a pas cette API) : un interrupteur natif caché qu'on bascule,
-qui donne un retour haptique depuis iOS 18. Coupables dans Réglages → Sur cet appareil.
+Petites vibrations (`src/haptics.ts`). Android : API Vibration, à chaque carte posée, sur
+un blackjack, quand une main gagne contre la banque, et au début et à la fin de chaque
+manche. iPhone : Safari n'a pas cette API, et depuis iOS 26.5 un script ne peut plus faire
+vibrer ; seul un vrai toucher sur un interrupteur natif le peut. Les boutons du jeu sont donc
+recouverts d'un interrupteur invisible (`Haptic` dans `src/ui/common.tsx`) : le téléphone
+vibre quand on les touche. Réglages → Sur cet appareil : couper, ou tester la vibration.
+
+En partie, le bouton **Quitter** en haut à gauche ramène à l'écran de création (après
+confirmation ; l'hôte d'une partie en ligne ferme alors la salle pour tout le monde).
 
 Les messages passent par Supabase Realtime (diffusion, sans table ni compte),
 sur le projet Supabase de Dooka : les salles sont des canaux `bj-ABCD`, rien n'est écrit

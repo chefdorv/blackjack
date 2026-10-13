@@ -6,7 +6,7 @@ import type { OpenTable } from '../net/directory';
 import type { LobbyEntry } from '../net/protocol';
 import type { TransportStatus } from '../net/transport';
 import type { Settings } from '../game/types';
-import { Dialog } from './common';
+import { Dialog, Haptic } from './common';
 import { DurationFields } from './SetupScreen';
 import { IconClose, IconDown, IconLock, IconUnlock, IconUp } from './icons';
 
@@ -179,9 +179,11 @@ export function HostLobbyScreen({
       {lobby.length === 0 && <div class="empty">Personne pour l'instant.</div>}
       <NameForm id="lobby-name" names={lobby.map((e) => e.name)} others={[]} onAdd={onAdd} label="Prénom" />
       <DurationFields settings={settings} mode={mode} players={lobby.length} onSettings={onSettings} />
-      <button type="button" class="btn big gold" onClick={onStart} disabled={lobby.length < min || lobby.length > MAX_PLAYERS}>
-        Lancer la partie
-      </button>
+      <Haptic>
+        <button type="button" class="btn big gold" onClick={onStart} disabled={lobby.length < min || lobby.length > MAX_PLAYERS}>
+          Lancer la partie
+        </button>
+      </Haptic>
       {lobby.length < min && <p class="small">Encore {min - lobby.length} joueur{min - lobby.length > 1 ? 's' : ''} minimum.</p>}
       <button type="button" class="btn danger" onClick={onCancel}>
         Fermer la salle

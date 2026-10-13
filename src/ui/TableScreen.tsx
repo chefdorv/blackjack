@@ -8,7 +8,7 @@ import { betFor } from '../game/settings';
 import type { Challenge, Game, Player, Settings, Virtual } from '../game/types';
 import { betRange, chipsOf, dealerPlayer, legal, seatedPlayers, turnPid } from '../game/virtual';
 import { buzz } from '../haptics';
-import { Stepper } from './common';
+import { Haptic, Stepper } from './common';
 import { CardBack, PlayingCard, totalLabel } from './PlayingCard';
 
 function reducedMotion(): boolean {
@@ -305,6 +305,7 @@ function Table({ game: g, settings: s, controls, onBet, onReady, onPlay, onNext,
                     min={br.min}
                     max={br.max}
                     bigStep={5}
+                    haptic
                     clearOnFocus
                     decLabel={'Miser un jeton de moins pour ' + p.name}
                     incLabel={'Miser un jeton de plus pour ' + p.name}
@@ -320,9 +321,11 @@ function Table({ game: g, settings: s, controls, onBet, onReady, onPlay, onNext,
                   />
                 );
               })}
-              <button type="button" class="btn big gold bet-go" onClick={() => onReady(myPending.map((p) => p.id), true)}>
-                {solo || waitingFor.length === myPending.length ? 'Distribuer' : 'Valider ma mise'}
-              </button>
+              <Haptic>
+                <button type="button" class="btn big gold bet-go" onClick={() => onReady(myPending.map((p) => p.id), true)}>
+                  {solo || waitingFor.length === myPending.length ? 'Distribuer' : 'Valider ma mise'}
+                </button>
+              </Haptic>
             </>
           ) : (
             <>
@@ -462,9 +465,11 @@ function Table({ game: g, settings: s, controls, onBet, onReady, onPlay, onNext,
       )}
       {v.phase === 'bilan' && done && (
         <div class="dock">
-          <button type="button" class="btn big gold" onClick={onNext}>
-            {nextLabel}
-          </button>
+          <Haptic>
+            <button type="button" class="btn big gold" onClick={onNext}>
+              {nextLabel}
+            </button>
+          </Haptic>
         </div>
       )}
     </>
@@ -513,9 +518,11 @@ function ActionDock({ g, pid, mine, onPlay }: { g: Game; pid: string; mine: bool
       {mine ? (
         <div class="dock-btns">
           {(['tirer', 'rester', 'doubler', 'splitter'] as const).map((a) => (
-            <button type="button" key={a} class={'btn' + (a === 'tirer' ? ' gold' : a === 'rester' ? ' red' : ' ghost')} disabled={!l[a]} onClick={() => onPlay(pid, a)}>
-              {ACTION_LABEL[a]}
-            </button>
+            <Haptic key={a}>
+              <button type="button" class={'btn' + (a === 'tirer' ? ' gold' : a === 'rester' ? ' red' : ' ghost')} disabled={!l[a]} onClick={() => onPlay(pid, a)}>
+                {ACTION_LABEL[a]}
+              </button>
+            </Haptic>
           ))}
         </div>
       ) : (

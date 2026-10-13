@@ -78,3 +78,10 @@ export const IconUnlock = () => (
     <path d="M8 11V7a4 4 0 0 1 7.8-1.3" />
   </Svg>
 );
+export const IconExit = () => (
+  <Svg width={2.4}>
+    <path d="M10 17l-5-5 5-5" />
+    <path d="M5 12h10" />
+    <path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" />
+  </Svg>
+);

@@ -277,6 +277,49 @@ try {
     await hctx.close();
   });
 
+  await step('sans API Vibration (iPhone) : toucher un bouton bascule l’interrupteur et joue l’action', async () => {
+    const ictx = await browser.newContext({ viewport: { width: 375, height: 812 }, locale: 'fr-FR', serviceWorkers: 'block', reducedMotion: 'reduce' });
+    await ictx.addInitScript(() => {
+      delete Navigator.prototype.vibrate;
+    });
+    const p = await ictx.newPage();
+    watch(p, 'iphone ');
+    await p.goto(URL);
+    await p.getByText("Tout dans l'app").click();
+    await p.getByText('Banque automatique').click();
+    await p.getByLabel('Nom du joueur').fill('Zoé');
+    await p.getByLabel('Nom du joueur').press('Enter');
+    await p.locator('.hap', { hasText: 'Lancer la partie' }).locator('.hap-zone').click();
+    await p.waitForSelector('.bet-panel');
+    const plus = p.locator('.hap', { has: p.getByRole('button', { name: 'Miser un jeton de plus pour Zoé' }) });
+    const bet = p.locator('.bet-panel').getByLabel('Zoé', { exact: true });
+    const value = Number(await bet.inputValue());
+    const before = await plus.locator('input').isChecked();
+    await plus.locator('.hap-zone').click();
+    check(Number(await bet.inputValue()) === value + 1, 'un toucher doit ajouter un seul jeton : ' + value + ' → ' + (await bet.inputValue()));
+    check((await plus.locator('input').isChecked()) !== before, 'interrupteur non basculé');
+    await p.locator('.hap', { hasText: 'Distribuer' }).locator('.hap-zone').click();
+    await p.waitForSelector('.pc');
+    await ictx.close();
+  });
+
+  await step('« Quitter » ramène à l’écran de création', async () => {
+    const qctx = await browser.newContext({ viewport: { width: 375, height: 812 }, locale: 'fr-FR', serviceWorkers: 'block', reducedMotion: 'reduce' });
+    const p = await qctx.newPage();
+    watch(p, 'quitter ');
+    await p.goto(URL);
+    await p.getByText("Tout dans l'app").click();
+    await p.getByText('Banque automatique').click();
+    await p.getByLabel('Nom du joueur').fill('Zoé');
+    await p.getByLabel('Nom du joueur').press('Enter');
+    await p.getByRole('button', { name: 'Lancer la partie' }).click();
+    await p.locator('header').getByRole('button', { name: 'Quitter' }).click();
+    await p.getByRole('dialog').getByRole('button', { name: 'Quitter', exact: true }).click();
+    await p.waitForSelector('#setup-title', { timeout: 5000 });
+    check((await p.locator('.dealer-zone').count()) === 0, 'la table est encore affichée');
+    await qctx.close();
+  });
+
   console.log('Deux téléphones');
   await step('l’hôte ouvre une salle, l’invité la rejoint avec le lien', async () => {
     const mctx = await browser.newContext({ viewport: { width: 375, height: 812 }, locale: 'fr-FR', serviceWorkers: 'block', reducedMotion: 'reduce' });

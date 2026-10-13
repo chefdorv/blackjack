@@ -35,7 +35,7 @@ import { ConfirmDialog, type ConfirmRequest } from './ui/common';
 import { ClaimDialog, DefisScreen } from './ui/DefisScreen';
 import { CountScreen, EndScreen, SettleScreen, VirtualSettleScreen } from './ui/EndScreens';
 import { CorrectSheet, GameScreen } from './ui/GameScreen';
-import { IconBook, IconCards, IconSliders, IconTable, IconTrophy, IconUndo } from './ui/icons';
+import { IconBook, IconCards, IconExit, IconSliders, IconTable, IconTrophy, IconUndo } from './ui/icons';
 import { RankScreen, RulesScreen } from './ui/InfoScreens';
 import { GuestLobbyScreen, GuestsBanner, HostLobbyScreen, JoinScreen, OpenTablesPanel, ReassignDialog, RoomBar, SpectatorNote } from './ui/RoomScreens';
 import { SettingsScreen } from './ui/SettingsScreen';
@@ -372,6 +372,26 @@ export function App() {
       net.close(true);
       setData({ ...ref.current, room: null, tab: 'table' });
     });
+
+  /** Bouton « Quitter » de l'en-tête en partie : retour à l'écran de création, après confirmation. */
+  const quitGame = () => {
+    const r = ref.current.room;
+    if (r?.role === 'guest')
+      ask('Quitter la partie et revenir à l’accueil ?', () => {
+        net.close(true);
+        setData({ ...ref.current, room: null, tab: 'table' });
+        scrollTop();
+      }, 'Quitter');
+    else if (r?.role === 'host')
+      ask('Quitter la partie ? La salle sera fermée pour tous les joueurs.', () => {
+        net.close(true);
+        const d = ref.current;
+        setData({ ...d, room: null, game: null, history: [], tab: 'table' });
+        setSheet(null);
+        scrollTop();
+      }, 'Quitter');
+    else ask('Quitter la partie ? Elle ne pourra pas être reprise.', toSetup, 'Quitter');
+  };
 
   /** Donne la place d'un joueur à un autre appareil (le sien ne répond plus), ou à celui-ci. */
   const giveSeat = (pid: string, to: string) => {
@@ -802,9 +822,13 @@ export function App() {
 
   return (
     <div class={'app' + (inPlay ? ' in-play' : '')}>
-      {(!inPlay || undoLabel) && (
       <header class="top">
-        {!inPlay && (
+        {inPlay ? (
+          <button type="button" class="btn sm ghost quit" onClick={quitGame}>
+            <IconExit />
+            Quitter
+          </button>
+        ) : (
         <div class="brand">
           <span class="brand-mark" aria-hidden="true">
             ♠
@@ -824,7 +848,6 @@ export function App() {
           </button>
         )}
       </header>
-      )}
 
       <main class="main" id="contenu">
         {room && g && tab === 'table' && (

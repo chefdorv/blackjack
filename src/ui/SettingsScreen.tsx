@@ -1,9 +1,9 @@
 import { useState } from 'preact/hooks';
 import { isLevel, LEVELS } from '../game/defaults';
-import { setVibrations, vibrationsOn } from '../haptics';
+import { buzz, setVibrations, vibrationsOn } from '../haptics';
 import { addChallenge, BET_LIMIT, DECKS_MAX, DECKS_MIN, REWARD_LIMIT, SETTING_FIELDS, setBet, setNumber, setTable, updateChallenge } from '../game/settings';
 import type { Level, Settings } from '../game/types';
-import { Stepper } from './common';
+import { Haptic, Stepper } from './common';
 import { IconTrash } from './icons';
 
 function LevelSelect({ id, value, onChange, label }: { id: string; value: Level; onChange: (l: Level) => void; label: string }) {
@@ -127,7 +127,18 @@ export function SettingsScreen({
             setVib(on);
           }}
         />
-        <p class="small">Sur iPhone, il faut iOS 18 ou plus récent, avec les vibrations du système activées dans les réglages de l’iPhone.</p>
+        {vibrations && (
+          <Haptic>
+            <button type="button" class="btn" onClick={() => buzz('gagne')}>
+              Tester la vibration
+            </button>
+          </Haptic>
+        )}
+        <p class="small">
+          Sur Android, le téléphone vibre aux moments forts de la partie. Sur iPhone, Safari ne laisse vibrer qu’au toucher : le téléphone vibre quand
+          vous touchez les boutons du jeu (mises, Distribuer, Tirer, Rester…), à condition que les vibrations du système soient activées dans les
+          réglages de l’iPhone.
+        </p>
       </section>
 
       <section class="panel" aria-labelledby="bets-title">

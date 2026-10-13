@@ -1,5 +1,6 @@
 import type { ComponentChildren } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
+import { tapHaptics } from '../haptics';
 
 /** Fenêtre modale ou panneau montant : focus à l'ouverture, Échap pour fermer, focus rendu à la fermeture. */
 export function Dialog({
@@ -37,6 +38,36 @@ export function Dialog({
   );
 }
 
+/** Attribut `switch` (Safari 17.4+) : l'interrupteur natif, qui vibre quand on le touche sur iPhone. */
+const SWITCH_ATTR: Record<string, string> = { switch: '' };
+
+/**
+ * Enveloppe un bouton : sur iPhone, un interrupteur natif invisible le recouvre, si bien qu'un
+ * toucher fait vibrer le téléphone, puis l'action du bouton est déclenchée. Ailleurs, rien ne change
+ * (clavier et lecteurs d'écran passent toujours par le vrai bouton).
+ */
+export function Haptic({ children }: { children: ComponentChildren }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  if (!tapHaptics()) return <>{children}</>;
+  return (
+    <span ref={ref} class="hap">
+      {children}
+      <label
+        class="hap-zone"
+        aria-hidden="true"
+        onClick={(e) => {
+          // Le clic du libellé est relayé à l'interrupteur, qui le renvoie ici : on ne le compte qu'une fois.
+          if (e.target instanceof HTMLInputElement) return;
+          const b = ref.current?.querySelector('button');
+          if (b && !b.disabled) b.click();
+        }}
+      >
+        <input type="checkbox" tabIndex={-1} {...SWITCH_ATTR} />
+      </label>
+    </span>
+  );
+}
+
 /** Champ numérique avec boutons − / +, et vrai <label>. */
 export function Stepper({
   id,
@@ -51,6 +82,7 @@ export function Stepper({
   placeholder,
   allowEmpty = false,
   hideLabel = false,
+  haptic = false,
   clearOnFocus = false,
   bigStep,
   sub,
@@ -67,6 +99,8 @@ export function Stepper({
   placeholder?: string;
   allowEmpty?: boolean;
   hideLabel?: boolean;
+  /** Vibration au toucher des boutons (iPhone, voir `Haptic`). */
+  haptic?: boolean;
   /** Vide le champ quand on le touche : on tape la nouvelle valeur sans effacer l'ancienne (remise si rien n'est tapé). */
   clearOnFocus?: boolean;
   /** Deuxième paire de boutons (ex. −5 / +5) autour de −1 / +1 ; les réglages passent alors sous le libellé. */
@@ -95,11 +129,12 @@ export function Stepper({
   };
   const dec = step === 1 && !bigStep ? '−' : '−' + step;
   const inc = step === 1 && !bigStep ? '+' : '+' + step;
+  const tap = (b: ComponentChildren) => (haptic ? <Haptic>{b}</Haptic> : b);
   const big = (sign: 1 | -1) =>
-    bigStep ? (
+    bigStep ? tap(
       <button type="button" class={'qbtn big-step ' + (sign > 0 ? 'inc' : 'dec')} onClick={() => onChange(clamp((value ?? 0) + sign * bigStep))} aria-label={(sign > 0 ? 'Ajouter ' : 'Retirer ') + bigStep + ' : ' + label}>
         {(sign > 0 ? '+' : '−') + bigStep}
-      </button>
+      </button>,
     ) : null;
   return (
     <div class={'set-row' + (bigStep ? ' stacked' : '')}>
@@ -111,9 +146,9 @@ export function Stepper({
       </div>
       <div class="step">
         {big(-1)}
-        <button type="button" class="qbtn dec" onClick={() => onChange(clamp((value ?? 0) - step))} aria-label={decLabel ?? 'Diminuer ' + label}>
+        {tap(<button type="button" class="qbtn dec" onClick={() => onChange(clamp((value ?? 0) - step))} aria-label={decLabel ?? 'Diminuer ' + label}>
           {dec}
-        </button>
+        </button>)}
         <input
           id={id}
           class="txt num"
@@ -140,9 +175,9 @@ export function Stepper({
           onInput={(e) => commit(e, true)}
           onChange={(e) => commit(e, false)}
         />
-        <button type="button" class="qbtn inc" onClick={() => onChange(clamp((value ?? 0) + step))} aria-label={incLabel ?? 'Augmenter ' + label}>
+        {tap(<button type="button" class="qbtn inc" onClick={() => onChange(clamp((value ?? 0) + step))} aria-label={incLabel ?? 'Augmenter ' + label}>
           {inc}
-        </button>
+        </button>)}
         {big(1)}
       </div>
     </div>

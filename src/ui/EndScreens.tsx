@@ -3,7 +3,7 @@ import { num, plural, signed } from '../game/format';
 import { allCounted } from '../game/game';
 import { blackjackKings, finalRanking, pending, type ScoreRow } from '../game/scoring';
 import type { Championship, Game, Settings } from '../game/types';
-import { Stepper } from './common';
+import { Haptic, Stepper } from './common';
 
 export function SettleScreen({
   game: g,
@@ -63,9 +63,11 @@ export function SettleScreen({
       <p class="small">
         Un joueur ne peut pas payer tout de suite ? Ce qui n'est pas réglé est reporté {last ? 'au décompte final' : 'à la manche suivante, ou compté au décompte final'}.
       </p>
-      <button type="button" class="btn big gold" onClick={onNext}>
-        {last ? 'Passer au décompte final' : 'Lancer la manche ' + (g.round + 1)}
-      </button>
+      <Haptic>
+        <button type="button" class="btn big gold" onClick={onNext}>
+          {last ? 'Passer au décompte final' : 'Lancer la manche ' + (g.round + 1)}
+        </button>
+      </Haptic>
     </section>
   );
 }
@@ -100,9 +102,11 @@ export function VirtualSettleScreen({ game: g, settings: s, onNext }: { game: Ga
           </div>
         ))}
       </div>
-      <button type="button" class="btn big gold" onClick={onNext}>
-        {last ? 'Voir le podium' : 'Lancer la manche ' + (g.round + 1)}
-      </button>
+      <Haptic>
+        <button type="button" class="btn big gold" onClick={onNext}>
+          {last ? 'Voir le podium' : 'Lancer la manche ' + (g.round + 1)}
+        </button>
+      </Haptic>
     </section>
   );
 }

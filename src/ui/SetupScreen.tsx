@@ -3,7 +3,7 @@ import { addName, canStart, MAX_PLAYERS, minPlayers, moveItem, NAME_MAX, nameErr
 import type { SetupMode } from '../game/persist';
 import { setNumber } from '../game/settings';
 import type { Settings } from '../game/types';
-import { Stepper } from './common';
+import { Haptic, Stepper } from './common';
 import { IconClose, IconDown, IconUp } from './icons';
 
 function Choice<T extends string>({
@@ -254,9 +254,11 @@ export function SetupScreen({
           Ouvrir la salle
         </button>
       ) : (
-        <button type="button" class="btn big gold" onClick={() => onStart(names.slice())} disabled={!canStart(names, min)}>
-          Lancer la partie
-        </button>
+        <Haptic>
+          <button type="button" class="btn big gold" onClick={() => onStart(names.slice())} disabled={!canStart(names, min)}>
+            Lancer la partie
+          </button>
+        </Haptic>
       )}
     </section>
   );
