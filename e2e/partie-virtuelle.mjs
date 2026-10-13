@@ -241,6 +241,42 @@ try {
     await actx.close();
   });
 
+  console.log('Vibrations');
+  await step('carte, blackjack, gain contre la banque, début et fin de manche', async () => {
+    const hctx = await browser.newContext({ viewport: { width: 375, height: 812 }, locale: 'fr-FR', serviceWorkers: 'block' });
+    // Chaque vibration demandée est notée (durées jointes par des tirets).
+    await hctx.addInitScript(() => {
+      window.__buzz = [];
+      Object.defineProperty(navigator, 'vibrate', { configurable: true, value: (p) => (window.__buzz.push([].concat(p).join('-')), true) });
+    });
+    const p = await hctx.newPage();
+    watch(p, 'vibrations ');
+    const buzzes = () => p.evaluate(() => window.__buzz);
+    await p.goto(URL);
+    await p.getByText("Tout dans l'app").click();
+    await p.getByText('Banque automatique').click();
+    for (let i = 0; i < 4; i++) await p.getByRole('button', { name: 'Diminuer Donnes par manche' }).click();
+    await p.getByLabel('Nom du joueur').fill('Zoé');
+    await p.getByLabel('Nom du joueur').press('Enter');
+    await p.getByRole('button', { name: 'Lancer la partie' }).click();
+    await p.waitForFunction(() => window.__buzz.includes('90-90-90'), null, { timeout: 5000 }).catch(() => {});
+    check((await buzzes()).includes('90-90-90'), 'pas de vibration au début de la manche : ' + (await buzzes()));
+    // Zoé reçoit As + Roi, la banque 9 puis 7 et 10 : blackjack gagnant.
+    await rig(p, ['A♠', '9♥', 'K♦', '7♣', '10♣', '2♠', '3♠', '4♠'], []);
+    await p.waitForTimeout(300);
+    check((await buzzes()).length === 0, 'vibration en rechargeant la page : ' + (await buzzes()));
+    await p.getByRole('button', { name: 'Distribuer' }).click();
+    await p.waitForSelector('.recap', { timeout: 15000 });
+    await p.waitForTimeout(600);
+    const b = await buzzes();
+    check(b.filter((x) => x === '12').length >= 3, 'vibrations des cartes : ' + b);
+    check(b.includes('50-50-50-50-140'), 'pas de vibration de blackjack : ' + b);
+    check(b.includes('35-70-35'), 'pas de vibration de gain : ' + b);
+    await p.getByRole('button', { name: 'Fin de manche : le bilan' }).click();
+    await p.waitForFunction(() => window.__buzz.includes('90-90-90'), null, { timeout: 5000 });
+    await hctx.close();
+  });
+
   console.log('Deux téléphones');
   await step('l’hôte ouvre une salle, l’invité la rejoint avec le lien', async () => {
     const mctx = await browser.newContext({ viewport: { width: 375, height: 812 }, locale: 'fr-FR', serviceWorkers: 'block', reducedMotion: 'reduce' });

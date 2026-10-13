@@ -1,12 +1,13 @@
 // Mode « Tout dans l'app » : la table de blackjack virtuelle.
-import { useEffect, useState } from 'preact/hooks';
-import { handValue, type Hand, type HandAction, type Outcome, type Round } from '../game/blackjack';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import { handValue, isBlackjack, isWin, type Hand, type HandAction, type Outcome, type Round } from '../game/blackjack';
 import { kindOf, tableChallenges } from '../game/challenges';
 import { levelLabel } from '../game/defaults';
 import { plural, signed } from '../game/format';
 import { betFor } from '../game/settings';
 import type { Challenge, Game, Player, Settings, Virtual } from '../game/types';
 import { betRange, chipsOf, dealerPlayer, legal, seatedPlayers, turnPid } from '../game/virtual';
+import { buzz } from '../haptics';
 import { Stepper } from './common';
 import { CardBack, PlayingCard, totalLabel } from './PlayingCard';
 
@@ -108,12 +109,23 @@ function HandView({
   );
 }
 
+/** Carte cachée du croupier posée face contre la table (règle américaine). */
+function holeShown(round: Round | null, reveal: Reveal, up: number): boolean {
+  return round !== null && round.rules.holeCard === 'americaine' && round.dealer.length >= 2 && up < 2 && reveal.dealt > round.seats.length * 2 + 1;
+}
+
+/** Cartes d'une main déjà posées : pendant la distribution, les deux premières arrivent dans l'ordre du sabot. */
+function visibleCards(h: Hand, hi: number, seatIdx: number, nSeats: number, reveal: Reveal, dealing: boolean): number {
+  if (!dealing || hi !== 0) return h.cards.length;
+  return (reveal.dealt > seatIdx ? 1 : 0) + (reveal.dealt > nSeats + 1 + seatIdx ? 1 : 0);
+}
+
 function DealerZone({ g, round, reveal, done }: { g: Game; round: Round | null; reveal: Reveal; done: boolean }) {
   const dealer = dealerPlayer(g);
   const name = dealer ? dealer.name : 'La banque';
   const cards = round?.dealer ?? [];
   const up = cards.slice(0, Math.min(cards.length, reveal.dealerUp));
-  const hole = round !== null && round.rules.holeCard === 'americaine' && cards.length >= 2 && up.length < 2 && reveal.dealt > round.seats.length * 2 + 1;
+  const hole = holeShown(round, reveal, up.length);
   const v = handValue(up);
   return (
     <section class="dealer-zone" aria-label={'Croupier : ' + name}>
@@ -210,6 +222,35 @@ function Table({ game: g, settings: s, controls, onBet, onReady, onPlay, onNext,
     if (!done || !turn || !mine(turn)) return;
     document.querySelector('.seat-card.is-turn')?.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' });
   }, [turn, turnHand, done]);
+
+  // Vibrations : chaque carte posée, un blackjack servi, une main gagnée contre la banque.
+  let shownCards = 0;
+  if (round) {
+    const up = Math.min(round.dealer.length, reveal.dealerUp);
+    shownCards = up + (holeShown(round, reveal, up) ? 1 : 0);
+    round.seats.forEach((seat, si) => seat.hands.forEach((h, hi) => (shownCards += visibleCards(h, hi, si, round.seats.length, reveal, dealing))));
+  }
+  const cardsSeen = useRef<{ dealNo: number; n: number } | null>(null);
+  useEffect(() => {
+    const prev = cardsSeen.current;
+    cardsSeen.current = { dealNo: v.dealNo, n: shownCards };
+    if (prev && prev.dealNo === v.dealNo && shownCards > prev.n) buzz('carte');
+  }, [v.dealNo, shownCards]);
+  // Donnes déjà vues à l'ouverture de l'écran : pas de vibration en rechargeant la page.
+  const bjSeen = useRef(v.dealNo);
+  useEffect(() => {
+    if (!round || dealing || bjSeen.current === v.dealNo) return;
+    bjSeen.current = v.dealNo;
+    if (round.seats.some((seat) => mine(seat.pid) && seat.hands.some(isBlackjack))) buzz('blackjack');
+  }, [v.dealNo, dealing, round !== null]);
+  const resultShown = done && round?.phase === 'terminee';
+  const winSeen = useRef(v.dealNo);
+  useEffect(() => {
+    if (!resultShown || !round || winSeen.current === v.dealNo) return;
+    winSeen.current = v.dealNo;
+    // Après le blackjack, laisser la vibration précédente se finir.
+    if (round.seats.some((seat) => mine(seat.pid) && seat.hands.some((h) => isWin(h.outcome)))) window.setTimeout(() => buzz('gagne'), 350);
+  }, [resultShown, v.dealNo]);
 
   // Le croupier joue : on le regarde tirer, puis le résultat de la donne apparaît juste en dessous.
   const dealerTurn = round?.phase === 'terminee' && !dealing && !done;
@@ -366,9 +407,7 @@ function Table({ game: g, settings: s, controls, onBet, onReady, onPlay, onNext,
               </div>
               {seat &&
                 seat.hands.map((h, hi) => {
-                  // Pendant la distribution, les deux premières cartes arrivent dans l'ordre du sabot.
-                  let visible = h.cards.length;
-                  if (dealing && hi === 0) visible = (reveal.dealt > seatIdx ? 1 : 0) + (reveal.dealt > nSeats + 1 + seatIdx ? 1 : 0);
+                  const visible = visibleCards(h, hi, seatIdx, nSeats, reveal, dealing);
                   const active = playing && round?.turn?.hand === hi;
                   return (
                     <HandView

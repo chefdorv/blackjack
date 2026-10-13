@@ -29,6 +29,7 @@ import {
 import { useOpenTables, type OpenTable } from './net/directory';
 import { transportKind } from './net/transport';
 import { useRoom } from './net/useRoom';
+import { buzz } from './haptics';
 import { deviceId, saveState, loadState } from './storage';
 import { ConfirmDialog, type ConfirmRequest } from './ui/common';
 import { ClaimDialog, DefisScreen } from './ui/DefisScreen';
@@ -570,6 +571,20 @@ export function App() {
       : null;
   const listening = tab === 'table' && !room && !g && joining === null;
   const openTables = useOpenTables({ kind, device, announce: openTable, listen: listening });
+
+  // Vibration au début et à la fin de chaque manche (sur chaque appareil de la partie).
+  const mancheState = g ? { round: g.round, settling: g.settling !== null, finished: g.finished, fresh: g.round === 1 && g.deal === 1 && g.dealersDone === 0 && (g.virtual?.dealNo ?? 0) === 0 } : null;
+  const mancheKey = mancheState ? [mancheState.round, mancheState.settling, mancheState.finished, mancheState.fresh].join() : '';
+  const mancheSeen = useRef(mancheState);
+  useEffect(() => {
+    const before = mancheSeen.current;
+    mancheSeen.current = mancheState;
+    if (!mancheState) return;
+    if (!before) {
+      // Nouvelle partie (pas une table retrouvée en rechargeant) : début de la manche 1.
+      if (mancheState.fresh) buzz('manche');
+    } else if ((mancheState.settling && !before.settling) || (mancheState.finished && !before.finished && !before.settling) || mancheState.round !== before.round) buzz('manche');
+  }, [mancheKey]);
 
   const reassignPlayer = hosting && g && reassign ? g.players.find((p) => p.id === reassign) : undefined;
 

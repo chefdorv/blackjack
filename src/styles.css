@@ -418,7 +418,7 @@ select.txt option{background:#0e4a30;color:#f6f1e3}
 .in-play .dealer-zone,.in-play .seat-card{scroll-margin-top:calc(12px + env(safe-area-inset-top))}
 .in-play .toast{top:calc(16px + env(safe-area-inset-top))}
 /* parties ouvertes et verrou de salle */
-.open-table .setup-name{white-space:normal}
+.open-name{flex-grow:1;font-size:21px;font-weight:700;min-width:0;word-break:break-word}
 .open-table .btn{flex-shrink:0}
 .lock-btn{width:48px;padding:0;flex-shrink:0}
 .lock-btn svg{width:22px;height:22px}

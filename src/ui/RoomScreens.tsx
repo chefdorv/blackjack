@@ -472,7 +472,7 @@ export function OpenTablesPanel({ tables, onJoin }: { tables: OpenTable[]; onJoi
             const where = t.started ? 'en jeu, manche ' + Math.min(t.round, t.rounds) + '/' + t.rounds : 'en attente';
             return (
               <li class="setup-row open-table" key={t.code}>
-                <span class="setup-name">
+                <span class="open-name">
                   {who}
                   <span class="small lobby-dev">
                     {t.players} joueur{t.players > 1 ? 's' : ''} · {where} · {t.mode === 'banque' ? 'banque' : 'croupier tournant'}

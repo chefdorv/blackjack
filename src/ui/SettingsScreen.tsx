@@ -1,5 +1,6 @@
 import { useState } from 'preact/hooks';
 import { isLevel, LEVELS } from '../game/defaults';
+import { setVibrations, vibrationsOn } from '../haptics';
 import { addChallenge, BET_LIMIT, DECKS_MAX, DECKS_MIN, REWARD_LIMIT, SETTING_FIELDS, setBet, setNumber, setTable, updateChallenge } from '../game/settings';
 import type { Level, Settings } from '../game/types';
 import { Stepper } from './common';
@@ -85,6 +86,7 @@ export function SettingsScreen({
   onResetSettings: () => void;
   onAdded: () => void;
 }) {
+  const [vibrations, setVib] = useState(vibrationsOn);
   const [draft, setDraft] = useState<{ text: string; level: Level; reward: number }>({ text: '', level: 'facile', reward: 5 });
   return (
     <>
@@ -110,6 +112,22 @@ export function SettingsScreen({
             />
           ))}
         </div>
+      </section>
+
+      <section class="panel" aria-labelledby="device-title">
+        <h2 class="h3" id="device-title">
+          Sur cet appareil
+        </h2>
+        <Toggle
+          id="set-vibrations"
+          label="Vibrations (cartes, gains, blackjack, manches)"
+          checked={vibrations}
+          onChange={(on) => {
+            setVibrations(on);
+            setVib(on);
+          }}
+        />
+        <p class="small">Sur iPhone, il faut iOS 18 ou plus récent, avec les vibrations du système activées dans les réglages de l’iPhone.</p>
       </section>
 
       <section class="panel" aria-labelledby="bets-title">
