@@ -255,8 +255,8 @@ function Table({ game: g, settings: s, controls, onBet, onReady, onPlay, onNext,
   // Le croupier joue : on le regarde tirer, puis le résultat de la donne apparaît juste en dessous.
   const dealerTurn = round?.phase === 'terminee' && !dealing && !done;
   useEffect(() => {
-    // Tout en haut : le croupier est juste sous le compteur de manche et de donne.
-    if (dealerTurn) window.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
+    // Jusqu'aux compteurs de manche et de donne, juste sous la barre « Quitter » : le croupier est en dessous.
+    if (dealerTurn) document.querySelector('.status')?.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' });
   }, [dealerTurn]);
 
   return (

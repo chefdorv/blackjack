@@ -41,10 +41,14 @@ export function Dialog({
 /** Attribut `switch` (Safari 17.4+) : l'interrupteur natif, qui vibre quand on le touche sur iPhone. */
 const SWITCH_ATTR: Record<string, string> = { switch: '' };
 
+/** L'interrupteur doit garder son apparence native (même invisible) pour que l'iPhone vibre. */
+const HAP_STYLE =
+  'position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;border:0;-webkit-appearance:switch;appearance:auto;opacity:0;z-index:1;cursor:pointer';
+
 /**
- * Enveloppe un bouton : sur iPhone, un interrupteur natif invisible le recouvre, si bien qu'un
- * toucher fait vibrer le téléphone, puis l'action du bouton est déclenchée. Ailleurs, rien ne change
- * (clavier et lecteurs d'écran passent toujours par le vrai bouton).
+ * Enveloppe un bouton : sur iPhone, un interrupteur natif invisible le recouvre. Le doigt touche
+ * l'interrupteur lui-même (seul geste qui fait vibrer depuis iOS 26.5), puis l'action du bouton est
+ * déclenchée. Ailleurs, rien ne change (clavier et lecteurs d'écran passent par le vrai bouton).
  */
 export function Haptic({ children }: { children: ComponentChildren }) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -52,18 +56,19 @@ export function Haptic({ children }: { children: ComponentChildren }) {
   return (
     <span ref={ref} class="hap">
       {children}
-      <label
+      <input
+        type="checkbox"
         class="hap-zone"
+        tabIndex={-1}
         aria-hidden="true"
+        style={HAP_STYLE}
+        {...SWITCH_ATTR}
         onClick={(e) => {
-          // Le clic du libellé est relayé à l'interrupteur, qui le renvoie ici : on ne le compte qu'une fois.
-          if (e.target instanceof HTMLInputElement) return;
+          e.stopPropagation();
           const b = ref.current?.querySelector('button');
           if (b && !b.disabled) b.click();
         }}
-      >
-        <input type="checkbox" tabIndex={-1} {...SWITCH_ATTR} />
-      </label>
+      />
     </span>
   );
 }

@@ -1,6 +1,6 @@
 import { useState } from 'preact/hooks';
 import { isLevel, LEVELS } from '../game/defaults';
-import { buzz, setVibrations, vibrationsOn } from '../haptics';
+import { buzz, hapticsMode, setVibrations, vibrationsOn } from '../haptics';
 import { addChallenge, BET_LIMIT, DECKS_MAX, DECKS_MIN, REWARD_LIMIT, SETTING_FIELDS, setBet, setNumber, setTable, updateChallenge } from '../game/settings';
 import type { Level, Settings } from '../game/types';
 import { Haptic, Stepper } from './common';
@@ -139,6 +139,7 @@ export function SettingsScreen({
           vous touchez les boutons du jeu (mises, Distribuer, Tirer, Rester…), à condition que les vibrations du système soient activées dans les
           réglages de l’iPhone.
         </p>
+        <p class="small">Cet appareil : {hapticsMode()}.</p>
       </section>
 
       <section class="panel" aria-labelledby="bets-title">

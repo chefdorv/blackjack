@@ -423,11 +423,9 @@ select.txt option{background:#0e4a30;color:#f6f1e3}
 .lock-btn{width:48px;padding:0;flex-shrink:0}
 .lock-btn svg{width:22px;height:22px}
 .lock-btn.on{background:rgba(226,184,90,.22);border:2px solid #e2b85a;color:#f3d58f}
-/* vibration au toucher sur iPhone : interrupteur natif invisible posé sur le bouton */
+/* vibration au toucher sur iPhone : interrupteur natif invisible posé sur le bouton (style en ligne) */
 .hap{position:relative;display:grid;min-width:0}
 .hap>button{width:100%;min-width:0}
-.hap-zone{position:absolute;inset:0;z-index:1;opacity:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
-.hap-zone input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;pointer-events:none}
 .hap:has(button:disabled) .hap-zone{pointer-events:none}
 .hap:active>.btn.gold{transform:translateY(3px);box-shadow:0 1px 0 #8c6a22}
 .hap:active>.btn:not(.gold),.hap:active>.qbtn{filter:brightness(1.25)}
@@ -435,3 +433,4 @@ select.txt option{background:#0e4a30;color:#f6f1e3}
 .in-play .top{justify-content:space-between}
 .quit{gap:6px;min-height:44px;padding:4px 12px}
 .quit svg{width:20px;height:20px;flex-shrink:0}
+.in-play .status{scroll-margin-top:calc(8px + env(safe-area-inset-top))}

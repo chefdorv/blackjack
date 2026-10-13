@@ -134,7 +134,8 @@ Petites vibrations (`src/haptics.ts`). Android : API Vibration, à chaque carte 
 un blackjack, quand une main gagne contre la banque, et au début et à la fin de chaque
 manche. iPhone : Safari n'a pas cette API, et depuis iOS 26.5 un script ne peut plus faire
 vibrer ; seul un vrai toucher sur un interrupteur natif le peut. Les boutons du jeu sont donc
-recouverts d'un interrupteur invisible (`Haptic` dans `src/ui/common.tsx`) : le téléphone
+recouverts d'un interrupteur invisible, touché directement par le doigt (pas via un `<label>`, ce
+relais ne vibre pas), et l'iPhone est détecté par son user-agent (`Haptic` dans `src/ui/common.tsx`) : le téléphone
 vibre quand on les touche. Réglages → Sur cet appareil : couper, ou tester la vibration.
 
 En partie, le bouton **Quitter** en haut à gauche ramène à l'écran de création (après

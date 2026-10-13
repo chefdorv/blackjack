@@ -40,9 +40,23 @@ export function setVibrations(on: boolean): void {
   if (on) buzz('carte');
 }
 
-/** Pas d'API Vibration (iPhone) : vibrations au toucher des boutons du jeu. */
+/** iPhone ou iPad (même quand l'iPad se présente comme un Mac). */
+export function isIOS(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform));
+}
+
+/** Sur iPhone (ou sans API Vibration) : vibrations au toucher des boutons du jeu. */
 export function tapHaptics(): boolean {
-  return enabled && typeof navigator !== 'undefined' && typeof navigator.vibrate !== 'function';
+  return enabled && typeof navigator !== 'undefined' && (isIOS() || typeof navigator.vibrate !== 'function');
+}
+
+/** Pour le diagnostic des Réglages : comment cet appareil vibre. */
+export function hapticsMode(): string {
+  if (typeof navigator === 'undefined') return 'inconnu';
+  const api = typeof navigator.vibrate === 'function';
+  if (isIOS()) return 'iPhone : interrupteur au toucher' + (api ? ' (+ API Vibration présente)' : '');
+  return api ? 'API Vibration' : 'interrupteur au toucher (pas d’API Vibration)';
 }
 
 let iosSwitch: HTMLLabelElement | null = null;
@@ -72,7 +86,7 @@ export function buzz(kind: Buzz): void {
   try {
     if (typeof navigator.vibrate === 'function') {
       navigator.vibrate(pattern);
-      return;
+      if (!isIOS()) return;
     }
     // Une impulsion par vibration du motif, aux mêmes instants.
     let at = 0;
