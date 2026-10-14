@@ -794,8 +794,8 @@ export function App() {
   else
     screen = (
       <SettingsScreen
-        settings={s}
-        hasGame={g !== null}
+        settings={settingsRaw}
+        mode={g ? (g.virtual?.mode ?? 'cartes') : null}
         onSettings={updateSettings}
         onAdded={() => flash('Défi ajouté')}
         onDeleteChallenge={(id, text) =>
@@ -810,7 +810,6 @@ export function App() {
             flash("Défis d'origine restaurés");
           })
         }
-        onAbandon={() => ask('Abandonner la partie en cours ? Elle ne pourra pas être reprise.', toSetup)}
         onResetSettings={() =>
           ask('Remettre tous les réglages (et les défis) par défaut ?', () => {
             updateSettings(defaultSettings());

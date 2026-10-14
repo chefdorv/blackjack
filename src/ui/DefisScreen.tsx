@@ -1,11 +1,17 @@
 import { canClaim, kindOf, poolRemaining, slotsFor, tableChallenges } from '../game/challenges';
 import { levelLabel } from '../game/defaults';
 import { plural } from '../game/format';
-import type { Challenge, ChallengeKind, Game, Settings } from '../game/types';
+import type { Challenge, ChallengeKind, Game, Player, Settings } from '../game/types';
+import { dealerPlayer } from '../game/virtual';
 import { Dialog } from './common';
 
+/** Le croupier en cours : celui de la table virtuelle (aucun en banque automatique), ou du tour de table. */
+function dealerOf(g: Game): Player | null {
+  return g.virtual ? dealerPlayer(g) : (g.players[g.dealer] ?? null);
+}
+
 function noteFor(c: Challenge, g: Game): string {
-  if (kindOf(c) === 'croupier') return 'Réservé au croupier : ' + g.players[g.dealer].name;
+  if (kindOf(c) === 'croupier') return 'Réservé au croupier' + (dealerOf(g) ? ' : ' + dealerOf(g)?.name : '');
   if (g.virtual) return c.auto ? 'Validé automatiquement' : 'À réclamer à la main';
   return 'Premier qui réussit';
 }
@@ -73,7 +79,7 @@ export function DefisScreen({
         {pool && active && (
           <div class="pool" aria-label="Défis restants dans la pioche">
             <span class="badge">Pioche joueurs : {pool.joueur}</span>
-            <span class="badge avail">Pioche croupier : {pool.croupier}</span>
+            {s.dealerSlots > 0 && <span class="badge avail">Pioche croupier : {pool.croupier}</span>}
           </div>
         )}
       </section>
@@ -174,6 +180,7 @@ export function ClaimDialog({
   onClose: () => void;
 }) {
   const isDealer = kindOf(c) === 'croupier';
+  const dealer = dealerOf(g);
   return (
     <Dialog label="Réclamer le défi" onClose={onClose} variant="modal">
       <div class="k">Qui a réussi ?</div>
@@ -186,13 +193,13 @@ export function ClaimDialog({
       </div>
       <p class="small">
         {isDealer
-          ? 'Défi croupier : seul ' + g.players[g.dealer].name + ' (croupier en cours) peut le réclamer.'
+          ? 'Défi croupier : seul ' + (dealer?.name ?? 'le croupier') + ' (croupier en cours) peut le réclamer.'
           : "Touchez le nom du premier joueur qui l'a réussi."}
       </p>
       <div class="pick-list">
         {g.players.map((p, i) => (
           <button type="button" class="pick" key={p.id} onClick={() => onPick(p.id)} disabled={!canClaim(g, c, i)}>
-            {p.name} <small>{(i === g.dealer ? 'croupier · ' : '') + 'défis +' + p.bonus}</small>
+            {p.name} <small>{(p.id === dealer?.id ? 'croupier · ' : '') + 'défis +' + p.bonus}</small>
           </button>
         ))}
       </div>

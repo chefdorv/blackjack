@@ -4,7 +4,7 @@ import { signed } from '../src/game/format';
 import { HISTORY_MAX, pushHistory } from '../src/game/history';
 import { addName, canStart, cleanName, moveItem, nameError } from '../src/game/names';
 import { emptyState, normalizePersisted } from '../src/game/persist';
-import { betFor, fixBets, normalizeSettings, setBet, setNumber } from '../src/game/settings';
+import { betFor, fixBets, normalizeSettings, setBet, setNumber, updateChallenge } from '../src/game/settings';
 import { newGame, settings } from './helpers';
 
 describe('noms des joueurs', () => {
@@ -27,6 +27,22 @@ describe('noms des joueurs', () => {
 });
 
 describe('réglages', () => {
+  it('un défi passé de joueur à croupier perd sa validation automatique, et la retrouve en revenant', () => {
+    const s = defaultSettings();
+    const c = s.challenges.find((x) => x.auto === 'blackjack');
+    if (!c) throw new Error('défi blackjack absent');
+    const croupier = updateChallenge(s, c.id, { level: 'croupier' });
+    expect(croupier.challenges.find((x) => x.id === c.id)?.auto).toBeUndefined();
+    expect(updateChallenge(croupier, c.id, { level: c.level }).challenges.find((x) => x.id === c.id)?.auto).toBe('blackjack');
+    const raw = { challenges: [{ ...c, level: 'croupier' }] };
+    expect(normalizeSettings(raw).challenges[0].auto).toBeUndefined();
+  });
+  it('l’ancien texte « 5 donnes de croupier » est remplacé et garde sa validation', () => {
+    const d = defaultSettings().challenges.find((x) => x.auto === 'croupier-invaincu');
+    if (!d) throw new Error('défi invaincu absent');
+    const s = normalizeSettings({ challenges: [{ id: d.id, level: 'croupier', reward: 40, text: 'Ne perdre aucune donne sur tes 5 donnes de croupier.' }] });
+    expect(s.challenges[0]).toEqual(d);
+  });
   it('prolonge les mises quand on ajoute des manches et garde min ≤ max', () => {
     const s = setNumber(defaultSettings(), 'rounds', 5);
     expect(s.bets.slice(0, 5)).toEqual([

@@ -69,6 +69,8 @@ try {
     await shot('01-reglages');
   });
   await step('mise min ≤ max garantie', async () => {
+    // Section repliée par défaut : on l'ouvre comme un joueur.
+    await page.locator('summary', { hasText: 'Mises par manche' }).click();
     const min = page.getByLabel('Mise min', { exact: true });
     await min.fill('15');
     await min.press('Tab');

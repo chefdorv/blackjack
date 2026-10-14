@@ -50,11 +50,22 @@ const DEFAULT_LIST: ReadonlyArray<readonly [Level, number, string, AutoKey]> = [
   ['croupier', 10, 'Battre tous les joueurs sur une même donne.', 'croupier-bat-tous'],
   ['croupier', 10, 'Faire 21 avec 3 cartes ou plus en tant que croupier.', 'croupier-21-3-cartes'],
   ['croupier', 20, 'Faire blackjack contre une table où tout le monde a misé le max.', 'croupier-bj-max'],
-  ['croupier', 40, 'Ne perdre aucune donne sur tes 5 donnes de croupier.', 'croupier-invaincu'],
+  ['croupier', 40, 'Ne perdre aucune donne de tout ton tour de croupier.', 'croupier-invaincu'],
 ];
 
 export function defaultChallenges(): Challenge[] {
   return DEFAULT_LIST.map(([level, reward, text, auto], i) => ({ id: 'c' + (i + 1), level, reward, text, auto }));
+}
+
+/** Anciens textes de défis d'origine devenus faux, remplacés au chargement des réglages. */
+export const RENAMED_TEXTS: Record<string, string> = {
+  // Le nombre de donnes par croupier est réglable (3 par défaut) depuis 1.5.0.
+  'Ne perdre aucune donne sur tes 5 donnes de croupier.': 'Ne perdre aucune donne de tout ton tour de croupier.',
+};
+
+/** Une clé de validation ne vaut que pour un défi du même type (joueur ou croupier). */
+export function autoFits(key: AutoKey, level: Level): boolean {
+  return key.startsWith('croupier-') === (level === 'croupier');
 }
 
 /**

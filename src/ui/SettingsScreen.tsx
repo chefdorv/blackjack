@@ -1,8 +1,10 @@
+import type { ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
 import { isLevel, LEVELS } from '../game/defaults';
 import { buzz, hapticsMode, isIOS, setVibrations, vibrationsOn } from '../haptics';
-import { addChallenge, BET_LIMIT, DECKS_MAX, DECKS_MIN, REWARD_LIMIT, SETTING_FIELDS, setBet, setNumber, setTable, updateChallenge } from '../game/settings';
-import type { Level, Settings } from '../game/types';
+import { plural } from '../game/format';
+import { addChallenge, BET_LIMIT, DECKS_MAX, DECKS_MIN, REWARD_LIMIT, SETTING_FIELDS, setBet, setNumber, setTable, updateChallenge, type SettingField } from '../game/settings';
+import type { Level, NumericSettingKey, Settings } from '../game/types';
 import { Haptic, Stepper } from './common';
 import { IconTrash } from './icons';
 
@@ -67,27 +69,71 @@ function Toggle({ id, label, checked, onChange }: { id: string; label: string; c
   );
 }
 
+/** Mode de la partie en cours, pour ne montrer que les réglages qui s'y appliquent. */
+export type SettingsMode = 'cartes' | 'tournant' | 'banque' | null;
+
+const HIDDEN: Record<Exclude<SettingsMode, null>, readonly NumericSettingKey[]> = {
+  cartes: ['bankDeals'],
+  tournant: ['bankDeals'],
+  banque: ['deals', 'dealerSlots'],
+};
+const SLOT_KEYS: readonly NumericSettingKey[] = ['playerSlots', 'dealerSlots'];
+
+/** Section repliable : le titre et un résumé d'une ligne, le détail au toucher. */
+function Fold({ id, title, summary, open, children }: { id: string; title: string; summary: string; open?: boolean; children: ComponentChildren }) {
+  return (
+    <details class="panel fold" open={open}>
+      <summary aria-labelledby={id + '-title'}>
+        <span class="grow">
+          <span class="h3" id={id + '-title'}>
+            {title}
+          </span>
+          <span class="small fold-sum">{summary}</span>
+        </span>
+        <span class="fold-chev" aria-hidden="true" />
+      </summary>
+      <div class="fold-body">{children}</div>
+    </details>
+  );
+}
+
 export function SettingsScreen({
   settings: s,
-  hasGame,
+  mode,
   onSettings,
   onDeleteChallenge,
   onRestoreChallenges,
-  onAbandon,
   onResetSettings,
   onAdded,
 }: {
   settings: Settings;
-  hasGame: boolean;
+  mode: SettingsMode;
   onSettings: (next: Settings) => void;
   onDeleteChallenge: (id: string, text: string) => void;
   onRestoreChallenges: () => void;
-  onAbandon: () => void;
   onResetSettings: () => void;
   onAdded: () => void;
 }) {
   const [vibrations, setVib] = useState(vibrationsOn);
   const [draft, setDraft] = useState<{ text: string; level: Level; reward: number }>({ text: '', level: 'facile', reward: 5 });
+  const hidden = mode ? HIDDEN[mode] : [];
+  const field = (f: SettingField) => (
+    <Stepper
+      key={f.key}
+      id={'set-' + f.key}
+      label={f.label}
+      value={s[f.key]}
+      step={f.step}
+      min={f.min}
+      max={f.max}
+      onChange={(v) => {
+        if (v !== null) onSettings(setNumber(s, f.key, v));
+      }}
+    />
+  );
+  const fields = SETTING_FIELDS.filter((f) => !hidden.includes(f.key));
+  const virtual = mode === 'tournant' || mode === 'banque';
+  const onTable = s.playerSlots + (mode === 'banque' ? 0 : s.dealerSlots);
   return (
     <>
       <section class="panel" aria-labelledby="settings-title">
@@ -95,64 +141,18 @@ export function SettingsScreen({
         <h1 class="h1" id="settings-title">
           La maison
         </h1>
-        <p class="small">Les jetons de départ s'appliquent à la prochaine partie ; le reste s'applique tout de suite.</p>
-        <div>
-          {SETTING_FIELDS.map((f) => (
-            <Stepper
-              key={f.key}
-              id={'set-' + f.key}
-              label={f.label}
-              value={s[f.key]}
-              step={f.step}
-              min={f.min}
-              max={f.max}
-              onChange={(v) => {
-                if (v !== null) onSettings(setNumber(s, f.key, v));
-              }}
-            />
-          ))}
-        </div>
-      </section>
-
-      <section class="panel" aria-labelledby="device-title">
-        <h2 class="h3" id="device-title">
-          Sur cet appareil
-        </h2>
-        <Toggle
-          id="set-vibrations"
-          label="Vibrations (cartes, gains, blackjack, manches)"
-          checked={vibrations}
-          onChange={(on) => {
-            setVibrations(on);
-            setVib(on);
-          }}
-        />
-        {vibrations && (
-          <Haptic>
-            <button type="button" class="btn" onClick={() => buzz('gagne')}>
-              Tester la vibration
-            </button>
-          </Haptic>
-        )}
         <p class="small">
-          Sur Android, le téléphone vibre aux moments forts de la partie. Sur iPhone, Safari ne laisse vibrer qu’au toucher : un petit « tic » quand
-          vous touchez les boutons du jeu (mises, Distribuer, Tirer, Rester…).
+          {mode
+            ? 'Seuls les réglages utiles à la partie en cours sont affichés. Les jetons de départ comptent pour la prochaine partie, le reste tout de suite.'
+            : "Les jetons de départ s'appliquent à la prochaine partie ; le reste s'applique tout de suite."}
         </p>
-        {isIOS() && (
-          <div class="set-row">
-            <label class="set-label" for="set-native-switch">
-              Interrupteur de l’iPhone : s’il ne vibre pas non plus, activez Réglages › Sons et vibrations › Retour haptique système
-            </label>
-            <input id="set-native-switch" type="checkbox" class="native-switch" {...{ switch: '' }} />
-          </div>
-        )}
-        <p class="small">Cet appareil : {hapticsMode()}.</p>
       </section>
 
-      <section class="panel" aria-labelledby="bets-title">
-        <h2 class="h3" id="bets-title">
-          Mises par manche
-        </h2>
+      <Fold id="game" title="Partie" summary={s.startChips + ' jetons · ' + s.rounds + ' manches · recave ' + s.rebuyChips} open>
+        {fields.filter((f) => !SLOT_KEYS.includes(f.key)).map(field)}
+      </Fold>
+
+      <Fold id="bets" title="Mises par manche" summary={s.bets.slice(0, s.rounds).map((b) => b.min + '–' + b.max).join(' · ')}>
         {s.bets.slice(0, s.rounds).map((b, i) => (
           <div class="bet-edit" key={i} role="group" aria-label={'Mises de la manche ' + (i + 1)}>
             <div class="k">Manche {i + 1}</div>
@@ -173,81 +173,93 @@ export function SettingsScreen({
             ))}
           </div>
         ))}
-      </section>
+      </Fold>
 
-      <section class="panel" aria-labelledby="table-title">
-        <h2 class="h3" id="table-title">
-          Table virtuelle
-        </h2>
-        <p class="small">Pour le mode « Tout dans l'app ». S'applique à la donne suivante ; changer le nombre de jeux remélange le sabot.</p>
-        <Stepper
-          id="set-decks"
-          label="Jeux de cartes dans le sabot"
-          value={s.table.decks}
-          min={DECKS_MIN}
-          max={DECKS_MAX}
-          onChange={(v) => {
-            if (v !== null) onSettings(setTable(s, { decks: v }));
-          }}
-        />
-        <Toggle id="set-h17" label="Le croupier tire sur 17 souple (As + 6)" checked={s.table.hitSoft17} onChange={(hitSoft17) => onSettings(setTable(s, { hitSoft17 }))} />
-        <Toggle
-          id="set-das"
-          label="Doubler après un split"
-          checked={s.table.doubleAfterSplit}
-          onChange={(doubleAfterSplit) => onSettings(setTable(s, { doubleAfterSplit }))}
-        />
-        <div class="set-row">
-          <label class="set-label" for="set-hole">
-            Carte cachée du croupier
-          </label>
-          <select
-            id="set-hole"
-            class="txt"
-            style="width:auto"
-            value={s.table.holeCard}
-            onChange={(e) => {
-              const v = e.currentTarget.value;
-              if (v === 'europeenne' || v === 'americaine') onSettings(setTable(s, { holeCard: v }));
+      {mode !== 'cartes' && (
+        <Fold
+          id="table"
+          title="Table virtuelle"
+          summary={plural(s.table.decks, 'jeu', 'jeux') + ' · carte cachée ' + (s.table.holeCard === 'americaine' ? 'à l’américaine' : 'à l’européenne')}
+        >
+          <p class="small">
+            {virtual ? '' : "Pour le mode « Tout dans l'app ». "}S'applique à la donne suivante ; changer le nombre de jeux remélange le sabot.
+          </p>
+          <Stepper
+            id="set-decks"
+            label="Jeux de cartes dans le sabot"
+            value={s.table.decks}
+            min={DECKS_MIN}
+            max={DECKS_MAX}
+            onChange={(v) => {
+              if (v !== null) onSettings(setTable(s, { decks: v }));
             }}
-          >
-            <option value="europeenne">À l'européenne</option>
-            <option value="americaine">À l'américaine</option>
-          </select>
-        </div>
-      </section>
+          />
+          <Toggle id="set-h17" label="Le croupier tire sur 17 souple (As + 6)" checked={s.table.hitSoft17} onChange={(hitSoft17) => onSettings(setTable(s, { hitSoft17 }))} />
+          <Toggle
+            id="set-das"
+            label="Doubler après un split"
+            checked={s.table.doubleAfterSplit}
+            onChange={(doubleAfterSplit) => onSettings(setTable(s, { doubleAfterSplit }))}
+          />
+          <div class="set-row">
+            <label class="set-label" for="set-hole">
+              Carte cachée du croupier
+            </label>
+            <select
+              id="set-hole"
+              class="txt auto-w"
+              value={s.table.holeCard}
+              onChange={(e) => {
+                const v = e.currentTarget.value;
+                if (v === 'europeenne' || v === 'americaine') onSettings(setTable(s, { holeCard: v }));
+              }}
+            >
+              <option value="europeenne">À l'européenne</option>
+              <option value="americaine">À l'américaine</option>
+            </select>
+          </div>
+        </Fold>
+      )}
 
-      <section class="panel" aria-labelledby="ch-title">
-        <h2 class="h3" id="ch-title">
-          Défis ({s.challenges.length})
-        </h2>
+      <Fold id="ch" title={'Défis (' + s.challenges.length + ')'} summary={plural(onTable, 'défi', 'défis') + ' sur la table à la fois'}>
+        {fields.filter((f) => SLOT_KEYS.includes(f.key)).map(field)}
         <p class="small">
-          Modifiez le texte, le niveau (et donc la couleur) et le gain de chaque défi. En mode « Tout dans l'app », les défis d'origine sont validés
-          automatiquement ; un défi réécrit ou ajouté se réclame à la main.
+          Touchez un défi pour changer son texte, son niveau (et donc sa couleur) ou son gain. En mode « Tout dans l'app », les défis marqués ✓ sont validés
+          automatiquement ; un défi réécrit ou ajouté se réclame à la main. Les changements de défis sur la table valent pour les prochains tirages.
         </p>
-        <ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:14px">
+        <ul class="plain-list ch-list">
           {s.challenges.map((c, i) => (
-            <li class="ch-edit" key={c.id}>
-              <div class="ch-edit-top">
-                <span class={'lv-dot lv-' + c.level} aria-hidden="true" />
-                <LevelSelect id={'ch-lv-' + c.id} label={'Niveau du défi ' + (i + 1)} value={c.level} onChange={(level) => onSettings(updateChallenge(s, c.id, { level }))} />
-                <RewardInput id={'ch-rw-' + c.id} label={'Gain en jetons du défi ' + (i + 1)} value={c.reward} onChange={(reward) => onSettings(updateChallenge(s, c.id, { reward }))} />
-                <button type="button" class="icon-btn" onClick={() => onDeleteChallenge(c.id, c.text)} aria-label={'Supprimer le défi ' + (i + 1)}>
-                  <IconTrash />
-                </button>
-              </div>
-              <label class="sr" for={'ch-tx-' + c.id}>
-                Texte du défi {i + 1}
-              </label>
-              {c.auto && <span class="small auto-note">Validé automatiquement en mode « Tout dans l'app »</span>}
-              <input
-                id={'ch-tx-' + c.id}
-                class="txt"
-                type="text"
-                value={c.text}
-                maxLength={140}
-                onInput={(e) => onSettings(updateChallenge(s, c.id, { text: e.currentTarget.value }))}
-              />
+            <li key={c.id}>
+              <details class="ch-edit">
+                <summary class="ch-sum">
+                  <span class={'lv-dot lv-' + c.level} aria-hidden="true" />
+                  <span class="grow">{c.text || 'Défi sans texte'}</span>
+                  {c.auto && (
+                    <span class="ch-auto" title="Validé automatiquement">
+                      ✓<span class="sr"> validé automatiquement</span>
+                    </span>
+                  )}
+                  <b>+{c.reward}</b>
+                </summary>
+                <div class="ch-edit-top">
+                  <LevelSelect id={'ch-lv-' + c.id} label={'Niveau du défi ' + (i + 1)} value={c.level} onChange={(level) => onSettings(updateChallenge(s, c.id, { level }))} />
+                  <RewardInput id={'ch-rw-' + c.id} label={'Gain en jetons du défi ' + (i + 1)} value={c.reward} onChange={(reward) => onSettings(updateChallenge(s, c.id, { reward }))} />
+                  <button type="button" class="icon-btn" onClick={() => onDeleteChallenge(c.id, c.text)} aria-label={'Supprimer le défi ' + (i + 1)}>
+                    <IconTrash />
+                  </button>
+                </div>
+                <label class="sr" for={'ch-tx-' + c.id}>
+                  Texte du défi {i + 1}
+                </label>
+                <input
+                  id={'ch-tx-' + c.id}
+                  class="txt"
+                  type="text"
+                  value={c.text}
+                  maxLength={140}
+                  onInput={(e) => onSettings(updateChallenge(s, c.id, { text: e.currentTarget.value }))}
+                />
+              </details>
             </li>
           ))}
         </ul>
@@ -289,17 +301,41 @@ export function SettingsScreen({
         <button type="button" class="btn ghost" onClick={onRestoreChallenges}>
           Restaurer les défis d'origine
         </button>
-      </section>
+      </Fold>
 
-      <section class="panel" aria-labelledby="party-title">
-        <h2 class="h3" id="party-title">
-          Partie
-        </h2>
-        {hasGame && (
-          <button type="button" class="btn danger" onClick={onAbandon}>
-            Abandonner la partie
-          </button>
+      <Fold id="device" title="Sur cet appareil" summary={'Vibrations ' + (vibrations ? 'activées' : 'coupées')}>
+        <Toggle
+          id="set-vibrations"
+          label="Vibrations (cartes, gains, blackjack, manches)"
+          checked={vibrations}
+          onChange={(on) => {
+            setVibrations(on);
+            setVib(on);
+          }}
+        />
+        {vibrations && (
+          <Haptic>
+            <button type="button" class="btn" onClick={() => buzz('gagne')}>
+              Tester la vibration
+            </button>
+          </Haptic>
         )}
+        <p class="small">
+          Sur Android, le téléphone vibre aux moments forts de la partie. Sur iPhone, Safari ne laisse vibrer qu’au toucher : un petit « tic » quand
+          vous touchez les boutons du jeu (mises, Distribuer, Tirer, Rester…).
+        </p>
+        {isIOS() && (
+          <div class="set-row">
+            <label class="set-label" for="set-native-switch">
+              Interrupteur de l’iPhone : s’il ne vibre pas non plus, activez Réglages › Sons et vibrations › Retour haptique système
+            </label>
+            <input id="set-native-switch" type="checkbox" class="native-switch" {...{ switch: '' }} />
+          </div>
+        )}
+        <p class="small">Cet appareil : {hapticsMode()}.</p>
+      </Fold>
+
+      <section class="panel">
         <button type="button" class="btn danger" onClick={onResetSettings}>
           Remettre les réglages par défaut
         </button>

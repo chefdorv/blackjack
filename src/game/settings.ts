@@ -1,5 +1,5 @@
 import { defaultTableRules, type TableRules } from './blackjack';
-import { defaultAutoKey, defaultChallenges, defaultSettings, isLevel } from './defaults';
+import { autoFits, defaultAutoKey, defaultChallenges, defaultSettings, isLevel, RENAMED_TEXTS } from './defaults';
 import { AUTO_KEYS, type AutoKey, type BetRange, type Challenge, type Level, type NumericSettingKey, type Settings } from './types';
 
 export interface SettingField {
@@ -82,11 +82,11 @@ export function updateChallenge(s: Settings, id: string, patch: Partial<Omit<Cha
   if (!c) return s;
   if (patch.level !== undefined && isLevel(patch.level)) c.level = patch.level;
   if (patch.reward !== undefined) c.reward = clampInt(patch.reward, 0, REWARD_LIMIT);
-  if (patch.text !== undefined) {
-    c.text = patch.text;
-    // Un défi réécrit ne correspond plus forcément à ce que l'application sait vérifier.
+  if (patch.text !== undefined) c.text = patch.text;
+  if (patch.text !== undefined || patch.level !== undefined) {
+    // Un défi réécrit, ou passé de joueur à croupier, ne correspond plus forcément à ce que l'application sait vérifier.
     const auto = defaultAutoKey(c.id, c.text);
-    if (auto) c.auto = auto;
+    if (auto && autoFits(auto, c.level)) c.auto = auto;
     else delete c.auto;
   }
   return next;
@@ -169,9 +169,10 @@ export function normalizeSettings(raw: unknown): Settings {
     s.challenges = raw.challenges.filter(isObj).flatMap((c) => {
       if (typeof c.id !== 'string' || seen.has(c.id) || !isLevel(c.level) || typeof c.text !== 'string') return [];
       seen.add(c.id);
-      const auto = isAutoKey(c.auto) ? c.auto : defaultAutoKey(c.id, c.text);
-      const out: Challenge = { id: c.id, level: c.level, reward: clampInt(c.reward, 0, REWARD_LIMIT), text: c.text };
-      if (auto) out.auto = auto;
+      const text = RENAMED_TEXTS[c.text] ?? c.text;
+      const auto = isAutoKey(c.auto) ? c.auto : defaultAutoKey(c.id, text);
+      const out: Challenge = { id: c.id, level: c.level, reward: clampInt(c.reward, 0, REWARD_LIMIT), text };
+      if (auto && autoFits(auto, c.level)) out.auto = auto;
       return [out];
     });
   }
