@@ -459,3 +459,4 @@ select.txt option{background:#0e4a30;color:#f6f1e3}
 .df-list b{font-family:'Playfair Display',Georgia,serif;font-weight:900;font-size:24px}
 .df-list li.pos b{color:#7fe0a4}
 .df-list li.neg b{color:#ff9aa0}
+.native-switch{-webkit-appearance:auto;appearance:auto;flex-shrink:0;margin:0}

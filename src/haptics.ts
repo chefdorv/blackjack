@@ -1,8 +1,9 @@
 // Petites vibrations aux moments forts. Android : API Vibration, déclenchée par le jeu
-// (carte posée, gain, blackjack, manche). iPhone : Safari n'a pas cette API ; seul un vrai
-// toucher sur un interrupteur natif (`<input type=checkbox switch>`) fait vibrer, et depuis
-// iOS 26.5 un script ne peut plus le basculer lui-même. On glisse donc un interrupteur
-// invisible sous les boutons du jeu (voir `Haptic`) : le téléphone vibre quand on les touche.
+// (carte posée, gain, blackjack, manche). iPhone : Safari n'a pas cette API ; seul un interrupteur
+// natif (`<input type=checkbox switch>`) basculé par un vrai toucher fait vibrer, et depuis iOS 26.5
+// un script ne peut plus le basculer lui-même. On pose donc sur les boutons du jeu un libellé
+// transparent relié à un interrupteur caché (voir `Haptic`) : le téléphone vibre quand on les touche.
+// Les motifs de `buzz` ne jouent en entier que sur Android ou un iOS plus ancien.
 // Réglage propre à l'appareil (pas partagé avec la salle), activé par défaut.
 
 export type Buzz = 'carte' | 'gagne' | 'blackjack' | 'manche';
@@ -55,7 +56,7 @@ export function tapHaptics(): boolean {
 export function hapticsMode(): string {
   if (typeof navigator === 'undefined') return 'inconnu';
   const api = typeof navigator.vibrate === 'function';
-  if (isIOS()) return 'iPhone : interrupteur au toucher' + (api ? ' (+ API Vibration présente)' : '');
+  if (isIOS()) return 'iPhone : libellé + interrupteur au toucher' + (api ? ' (+ API Vibration présente)' : '');
   return api ? 'API Vibration' : 'interrupteur au toucher (pas d’API Vibration)';
 }
 

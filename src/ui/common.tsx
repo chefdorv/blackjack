@@ -38,17 +38,19 @@ export function Dialog({
   );
 }
 
-/** Attribut `switch` (Safari 17.4+) : l'interrupteur natif, qui vibre quand on le touche sur iPhone. */
+/** Attribut `switch` (Safari 17.4+) : l'interrupteur natif, qui vibre quand il bascule sur iPhone. */
 const SWITCH_ATTR: Record<string, string> = { switch: '' };
 
-/** L'interrupteur doit garder son apparence native (même invisible) pour que l'iPhone vibre. */
-const HAP_STYLE =
-  'position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;border:0;-webkit-appearance:switch;appearance:auto;opacity:0;z-index:1;cursor:pointer';
+/** Libellé transparent posé sur le bouton : c'est lui que le doigt touche. */
+const ZONE_STYLE = 'position:absolute;inset:0;z-index:1;margin:0;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent';
+/** L'interrupteur reste caché et jamais sous le doigt (sinon le défilement de la page se bloque). */
+const SWITCH_STYLE = 'position:absolute;width:1px;height:1px;margin:0;visibility:hidden';
 
 /**
- * Enveloppe un bouton : sur iPhone, un interrupteur natif invisible le recouvre. Le doigt touche
- * l'interrupteur lui-même (seul geste qui fait vibrer depuis iOS 26.5), puis l'action du bouton est
- * déclenchée. Ailleurs, rien ne change (clavier et lecteurs d'écran passent par le vrai bouton).
+ * Enveloppe un bouton : sur iPhone, un libellé transparent le recouvre. Le toucher, vrai geste de
+ * l'utilisateur, fait basculer l'interrupteur caché du libellé (seul chemin qui vibre encore sur
+ * iOS 26.5 et 27, d'après ios-haptics), puis l'action du bouton est déclenchée. Ailleurs, rien ne
+ * change (clavier et lecteurs d'écran passent par le vrai bouton).
  */
 export function Haptic({ children }: { children: ComponentChildren }) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -56,19 +58,18 @@ export function Haptic({ children }: { children: ComponentChildren }) {
   return (
     <span ref={ref} class="hap">
       {children}
-      <input
-        type="checkbox"
+      <label
         class="hap-zone"
-        tabIndex={-1}
         aria-hidden="true"
-        style={HAP_STYLE}
-        {...SWITCH_ATTR}
-        onClick={(e) => {
-          e.stopPropagation();
+        style={ZONE_STYLE}
+        onClick={() => {
           const b = ref.current?.querySelector('button');
           if (b && !b.disabled) b.click();
         }}
-      />
+      >
+        {/* Le libellé renvoie son clic à l'interrupteur : cette copie ne doit pas rejouer l'action. */}
+        <input type="checkbox" tabIndex={-1} style={SWITCH_STYLE} {...SWITCH_ATTR} onClick={(e) => e.stopPropagation()} />
+      </label>
     </span>
   );
 }

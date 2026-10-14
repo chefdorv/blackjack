@@ -1,6 +1,6 @@
 import { useState } from 'preact/hooks';
 import { isLevel, LEVELS } from '../game/defaults';
-import { buzz, hapticsMode, setVibrations, vibrationsOn } from '../haptics';
+import { buzz, hapticsMode, isIOS, setVibrations, vibrationsOn } from '../haptics';
 import { addChallenge, BET_LIMIT, DECKS_MAX, DECKS_MIN, REWARD_LIMIT, SETTING_FIELDS, setBet, setNumber, setTable, updateChallenge } from '../game/settings';
 import type { Level, Settings } from '../game/types';
 import { Haptic, Stepper } from './common';
@@ -135,10 +135,17 @@ export function SettingsScreen({
           </Haptic>
         )}
         <p class="small">
-          Sur Android, le téléphone vibre aux moments forts de la partie. Sur iPhone, Safari ne laisse vibrer qu’au toucher : le téléphone vibre quand
-          vous touchez les boutons du jeu (mises, Distribuer, Tirer, Rester…), à condition que les vibrations du système soient activées dans les
-          réglages de l’iPhone.
+          Sur Android, le téléphone vibre aux moments forts de la partie. Sur iPhone, Safari ne laisse vibrer qu’au toucher : un petit « tic » quand
+          vous touchez les boutons du jeu (mises, Distribuer, Tirer, Rester…).
         </p>
+        {isIOS() && (
+          <div class="set-row">
+            <label class="set-label" for="set-native-switch">
+              Interrupteur de l’iPhone : s’il ne vibre pas non plus, activez Réglages › Sons et vibrations › Retour haptique système
+            </label>
+            <input id="set-native-switch" type="checkbox" class="native-switch" {...{ switch: '' }} />
+          </div>
+        )}
         <p class="small">Cet appareil : {hapticsMode()}.</p>
       </section>
 
