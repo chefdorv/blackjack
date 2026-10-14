@@ -1,6 +1,6 @@
 // Mode « Tout dans l'app » : la table de blackjack virtuelle.
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { handValue, isBlackjack, isWin, type Hand, type HandAction, type Outcome, type Round } from '../game/blackjack';
+import { handValue, isBlackjack, isWin, type Card, type Hand, type HandAction, type Outcome, type Round } from '../game/blackjack';
 import { kindOf, tableChallenges } from '../game/challenges';
 import { levelLabel } from '../game/defaults';
 import { plural, signed } from '../game/format';
@@ -120,12 +120,17 @@ function visibleCards(h: Hand, hi: number, seatIdx: number, nSeats: number, reve
   return (reveal.dealt > seatIdx ? 1 : 0) + (reveal.dealt > nSeats + 1 + seatIdx ? 1 : 0);
 }
 
+/** Cartes du croupier déjà retournées, et sa carte cachée éventuelle. */
+function dealerCards(round: Round | null, reveal: Reveal): { cards: readonly Card[]; up: Card[]; hole: boolean } {
+  const cards = round?.dealer ?? [];
+  const up = cards.slice(0, Math.min(cards.length, reveal.dealerUp));
+  return { cards, up, hole: holeShown(round, reveal, up.length) };
+}
+
 function DealerZone({ g, round, reveal, done }: { g: Game; round: Round | null; reveal: Reveal; done: boolean }) {
   const dealer = dealerPlayer(g);
   const name = dealer ? dealer.name : 'La banque';
-  const cards = round?.dealer ?? [];
-  const up = cards.slice(0, Math.min(cards.length, reveal.dealerUp));
-  const hole = holeShown(round, reveal, up.length);
+  const { cards, up, hole } = dealerCards(round, reveal);
   const v = handValue(up);
   return (
     <section class="dealer-zone" aria-label={'Croupier : ' + name}>
@@ -159,6 +164,62 @@ function DealerZone({ g, round, reveal, done }: { g: Game; round: Round | null; 
         )}
       </div>
     </section>
+  );
+}
+
+/** Rappel de la banque collé en haut de l'écran quand sa zone est sortie par le haut. */
+function BankBar({ g, round, reveal, done }: { g: Game; round: Round | null; reveal: Reveal; done: boolean }) {
+  const dealer = dealerPlayer(g);
+  const { cards, up, hole } = dealerCards(round, reveal);
+  const v = handValue(up);
+  return (
+    <div class="bank-bar" aria-hidden="true">
+      <span class="dealer-chip xs">D</span>
+      <span class="bb-name">{dealer ? dealer.name : 'Banque'}</span>
+      <span class="cards-row bb-cards">
+        {up.map((c, i) => (
+          <PlayingCard key={i} card={c} />
+        ))}
+        {hole && <CardBack />}
+        {cards.length === 0 && <span class="small">attend les mises</span>}
+      </span>
+      {up.length > 0 && <span class={'total' + (v.bust ? ' bust' : '')}>{done && round?.phase === 'terminee' && v.bust ? 'Sauté' : totalLabel(up)}</span>}
+    </div>
+  );
+}
+
+const FLASH_MS = 3200;
+
+interface Flash {
+  deal: number;
+  nets: Record<string, number>;
+}
+
+/** Résumé de fin de donne, en grand, le temps que tout le monde le lise ; un toucher le ferme. */
+function DealFlash({ g, flash, bank, onClose }: { g: Game; flash: Flash; bank: boolean; onClose: () => void }) {
+  const dealer = dealerPlayer(g);
+  const rows = g.players.filter((p) => flash.nets[p.id] !== undefined);
+  const bankNet = -rows.reduce((sum, p) => sum + (flash.nets[p.id] ?? 0), 0);
+  const line = (key: string, name: string, net: number, note?: string) => (
+    <li key={key} class={net > 0 ? 'pos' : net < 0 ? 'neg' : ''}>
+      <span class="grow">
+        {name}
+        {note && <span class="small"> · {note}</span>}
+      </span>
+      <b>{net === 0 ? 'égalité' : signed(net)}</b>
+    </li>
+  );
+  return (
+    <div class="deal-flash" role="status" onClick={onClose}>
+      <div class="df-card">
+        <div class="k">Fin de la donne {flash.deal}</div>
+        <ul class="df-list">
+          {rows.map((p) => line(p.id, p.name, flash.nets[p.id] ?? 0, dealer?.id === p.id ? 'croupier' : undefined))}
+          {bank && line('banque', 'La banque', bankNet)}
+        </ul>
+        <span class="small">Toucher pour fermer</span>
+      </div>
+    </div>
   );
 }
 
@@ -259,9 +320,35 @@ function Table({ game: g, settings: s, controls, onBet, onReady, onPlay, onNext,
     if (dealerTurn) document.querySelector('.status')?.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' });
   }, [dealerTurn]);
 
+  // Bandeau de la banque : dès que ses cartes sortent de l'écran par le haut.
+  const [bankBar, setBankBar] = useState(false);
+  useEffect(() => {
+    const el = document.querySelector('.dz-cards');
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(([e]) => setBankBar(!e.isIntersecting && e.boundingClientRect.top < 0));
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  // Résumé de fin de donne, une fois par donne (pas en rechargeant la page sur une donne déjà finie).
+  const [flash, setFlash] = useState<Flash | null>(null);
+  const flashSeen = useRef(round?.phase === 'terminee' ? v.dealNo : -1);
+  useEffect(() => {
+    if (!resultShown || !v.last || flashSeen.current === v.dealNo) return;
+    flashSeen.current = v.dealNo;
+    setFlash({ deal: g.deal, nets: v.last.nets });
+  }, [resultShown, v.dealNo]);
+  useEffect(() => {
+    if (!flash) return;
+    const t = window.setTimeout(() => setFlash(null), FLASH_MS);
+    return () => window.clearTimeout(t);
+  }, [flash]);
+
   return (
     <>
       <h1 class="sr">Table de blackjack</h1>
+      {bankBar && <BankBar g={g} round={round} reveal={reveal} done={done} />}
+      {flash && <DealFlash g={g} flash={flash} bank={bank} onClose={() => setFlash(null)} />}
       <section class="status tight" aria-label="Où en est la partie">
         <div class="pill">
           <span class="k">Manche</span>

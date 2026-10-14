@@ -155,6 +155,23 @@ try {
     await noHScroll('bilan de donne');
     await page.screenshot({ path: `${OUT}/v04-bilan-donne.png`, fullPage: true });
   });
+  await step('résumé de fin de donne en grand, fermé d’un toucher', async () => {
+    const f = flat(await page.locator('.deal-flash').innerText());
+    check(f.toLowerCase().includes('fin de la donne 1') && f.includes('Bob +20') && f.includes('Alice · croupier −20'), 'résumé : ' + f);
+    await page.screenshot({ path: `${OUT}/v04b-resume-donne.png` });
+    await page.locator('.deal-flash').click();
+    check((await page.locator('.deal-flash').count()) === 0, 'résumé toujours affiché');
+  });
+  await step('bandeau de la banque en haut quand on descend', async () => {
+    check((await page.locator('.bank-bar').count()) === 0, 'bandeau affiché alors que la banque est visible');
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.locator('.bank-bar').waitFor();
+    const b = flat(await page.locator('.bank-bar').innerText());
+    check(b.startsWith('D Alice') && (await page.locator('.bank-bar .pc').count()) >= 2, 'bandeau : ' + b);
+    await page.screenshot({ path: `${OUT}/v04c-bandeau-banque.png` });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.locator('.bank-bar').waitFor({ state: 'detached' });
+  });
 
   console.log('Donne 2 : Bob croupier, Alice splitte et perd tout');
   await step('le croupier tourne', async () => {
